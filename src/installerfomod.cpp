@@ -1,0 +1,184 @@
+#include "installerfomod.h"
+#include "fomodinstallerdialog.h"
+
+#include <report.h>
+#include <iinstallationmanager.h>
+
+#include <QtPlugin>
+#include <QStringList>
+
+
+InstallerFomod::InstallerFomod()
+{
+}
+
+bool InstallerFomod::init(IOrganizer *moInfo)
+{
+  m_MOInfo = moInfo;
+  return true;
+}
+
+QString InstallerFomod::name() const
+{
+  return "Fomod Installer";
+}
+
+QString InstallerFomod::author() const
+{
+  return "Tannin";
+}
+
+QString InstallerFomod::description() const
+{
+  return tr("Installer for xml based fomod archives. This probably has worse compatibility than the NCC based plugin.");
+}
+
+VersionInfo InstallerFomod::version() const
+{
+  return VersionInfo(1, 0, 0, VersionInfo::RELEASE_FINAL);
+}
+
+bool InstallerFomod::isActive() const
+{
+  return m_MOInfo->pluginSetting(name(), "enabled").toBool();
+}
+
+QList<PluginSetting> InstallerFomod::settings() const
+{
+  QList<PluginSetting> result;
+  result.push_back(PluginSetting("enabled", "check to enable this plugin", QVariant(true)));
+  result.push_back(PluginSetting("prefer", "prefer this over the NCC based plugin", QVariant(true)));
+  return result;
+}
+
+unsigned int InstallerFomod::priority() const
+{
+  return m_MOInfo->pluginSetting(name(), "prefer").toBool() ? 110 : 90;
+}
+
+
+bool InstallerFomod::isManualInstaller() const
+{
+  return false;
+}
+
+
+const DirectoryTree *InstallerFomod::findFomodDirectory(const DirectoryTree *tree) const
+{
+  for (DirectoryTree::const_node_iterator iter = tree->nodesBegin();
+       iter != tree->nodesEnd(); ++iter) {
+    const QString &dirName = (*iter)->getData().name;
+    if (dirName.compare("fomod", Qt::CaseInsensitive) == 0) {
+      return *iter;
+    }
+  }
+  if ((tree->numNodes() == 1) && (tree->numLeafs() == 0)) {
+    return findFomodDirectory(*tree->nodesBegin());
+  }
+  return NULL;
+}
+
+
+bool InstallerFomod::isArchiveSupported(const DirectoryTree &tree) const
+{
+  const DirectoryTree *fomodDir = findFomodDirectory(&tree);
+  if (fomodDir != NULL) {
+    for (DirectoryTree::const_leaf_iterator fileIter = fomodDir->leafsBegin();
+         fileIter != fomodDir->leafsEnd(); ++fileIter) {
+      if (fileIter->getName().compare("ModuleConfig.xml", Qt::CaseInsensitive) == 0) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+
+QString InstallerFomod::getFullPath(const DirectoryTree *tree, const FileTreeInformation &file)
+{
+  QString result;
+  const DirectoryTree *current = tree;
+  while (current != NULL) {
+    result.prepend(current->getData().name + "/");
+    current = current->getParent();
+  }
+  result.append(file.getName());
+  return result;
+}
+
+
+void InstallerFomod::appendImageFiles(QStringList &result, DirectoryTree *tree)
+{
+  for (auto iter = tree->leafsBegin(); iter != tree->leafsEnd(); ++iter) {
+    if ((iter->getName().endsWith(".png", Qt::CaseInsensitive)) ||
+        (iter->getName().endsWith(".jpg", Qt::CaseInsensitive)) ||
+        (iter->getName().endsWith(".gif", Qt::CaseInsensitive)) ||
+        (iter->getName().endsWith(".bmp", Qt::CaseInsensitive))) {
+      result.append(getFullPath(tree, *iter));
+    }
+  }
+
+  for (auto iter = tree->nodesBegin(); iter != tree->nodesEnd(); ++iter) {
+    appendImageFiles(result, *iter);
+  }
+}
+
+
+QStringList InstallerFomod::buildFomodTree(DirectoryTree &tree)
+{
+  QStringList result;
+  const DirectoryTree *fomodTree = findFomodDirectory(&tree);
+  for (auto iter = fomodTree->leafsBegin(); iter != fomodTree->leafsEnd(); ++iter) {
+    if ((iter->getName().compare("info.xml", Qt::CaseInsensitive) == 0) ||
+        (iter->getName().compare("ModuleConfig.xml", Qt::CaseInsensitive) == 0)) {
+      result.append(getFullPath(fomodTree, *iter));
+    }
+  }
+
+  appendImageFiles(result, &tree);
+
+  return result;
+}
+
+
+IPluginInstaller::EInstallResult InstallerFomod::install(QString &modName, DirectoryTree &tree)
+{
+  QStringList installerFiles = buildFomodTree(tree);
+  manager()->extractFiles(installerFiles);
+
+  try {
+    const DirectoryTree *fomodTree = findFomodDirectory(&tree);
+
+    QString fomodPath;
+    const DirectoryTree *current = fomodTree->getParent();
+    while (current != NULL) {
+      fomodPath.prepend(current->getData().name);
+      current = current->getParent();
+    }
+
+    FomodInstallerDialog dialog(modName, fomodPath);
+    dialog.initData();
+
+    if (dialog.exec() == QDialog::Accepted) {
+      modName = dialog.getName();
+      DirectoryTree *newTree = dialog.updateTree(&tree);
+      tree = *newTree;
+//      delete newTree;
+
+      return IPluginInstaller::RESULT_SUCCESS;
+    } else {
+      if (dialog.manualRequested()) {
+        modName = dialog.getName();
+        return IPluginInstaller::RESULT_MANUALREQUESTED;
+      } else {
+        return IPluginInstaller::RESULT_FAILED;
+      }
+    }
+  } catch (const std::exception &e) {
+    reportError(tr("Installation as fomod failed: %1").arg(e.what()));
+    return IPluginInstaller::RESULT_MANUALREQUESTED;
+  }
+}
+
+
+Q_EXPORT_PLUGIN2(installerFomod, InstallerFomod)
