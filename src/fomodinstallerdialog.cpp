@@ -31,6 +31,9 @@ along with Mod Organizer.  If not, see <http://www.gnu.org/licenses/>.
 #include <Shellapi.h>
 
 
+using namespace MOBase;
+
+
 bool ControlsAscending(QAbstractButton *LHS, QAbstractButton *RHS)
 {
   return LHS->text() < RHS->text();
@@ -55,16 +58,42 @@ bool PagesDescending(QGroupBox *LHS, QGroupBox *RHS)
 }
 
 
-FomodInstallerDialog::FomodInstallerDialog(const QString &modName, const QString &fomodPath, QWidget *parent)
-  : QDialog(parent), ui(new Ui::FomodInstallerDialog), m_FomodPath(fomodPath), m_Manual(false)
+FomodInstallerDialog::FomodInstallerDialog(const GuessedValue<QString> &modName, const QString &fomodPath, QWidget *parent)
+  : QDialog(parent), ui(new Ui::FomodInstallerDialog), m_ModName(modName), m_FomodPath(fomodPath), m_Manual(false)
 {
   ui->setupUi(this);
-  ui->nameEdit->setText(modName);
+
+  updateNameEdit();
 }
 
 FomodInstallerDialog::~FomodInstallerDialog()
 {
   delete ui;
+}
+
+
+void FomodInstallerDialog::updateNameEdit()
+{
+  ui->nameCombo->clear();
+  for (auto iter = m_ModName.variants().begin(); iter != m_ModName.variants().end(); ++iter) {
+    ui->nameCombo->addItem(*iter);
+  }
+
+  ui->nameCombo->setCurrentIndex(ui->nameCombo->findText(m_ModName));
+}
+
+
+int FomodInstallerDialog::bomOffset(const QByteArray &buffer)
+{
+  static const unsigned char BOM_UTF8[] = { 0xEF, 0xBB, 0xBF };
+  static const unsigned char BOM_UTF16BE[] = { 0xFE, 0xFF };
+  static const unsigned char BOM_UTF16LE[] = { 0xFF, 0xFE };
+
+  if (buffer.startsWith(reinterpret_cast<const char*>(BOM_UTF8))) return 3;
+  if (buffer.startsWith(reinterpret_cast<const char*>(BOM_UTF16BE)) ||
+      buffer.startsWith(reinterpret_cast<const char*>(BOM_UTF16LE))) return 2;
+
+  return 0;
 }
 
 #pragma message("implement module dependencies->file dependencies")
@@ -74,10 +103,11 @@ void FomodInstallerDialog::initData()
   { // parse provided package information
     QFile file(QDir::tempPath().append("/info.xml"));
     if (file.open(QIODevice::ReadOnly)) {
-      // nmm allows files with wrong encoding and of course there are now files with broken
-      // so, let's do as nmm does and ignore the standard. yay
+      // nmm's xml parser is less strict than the one from qt and allows files with
+      // wrong encoding in the header. Being strict here would be bad user experience
+      // this works around bad headers.
       QByteArray header = file.readLine();
-      if (strncmp(header.constData(), "<?", 2) != 0) {
+      if (strncmp(header.constData() + bomOffset(header), "<?", 2) != 0) {
         // not a header, rewind
         file.seek(0);
       }
@@ -97,9 +127,11 @@ void FomodInstallerDialog::initData()
     if (!file.open(QIODevice::ReadOnly)) {
       throw MyException(tr("ModuleConfig.xml missing"));
     }
-    // nmm allows files with wrong encoding and of course there are now files that are broken
+    // nmm's xml parser is less strict than the one from qt and allows files with
+    // wrong encoding in the header. Being strict here would be bad user experience
+    // this works around bad headers.
     QByteArray header = file.readLine();
-    if (strncmp(header.constData(), "<?", 2) != 0) {
+    if (strncmp(header.constData() + bomOffset(header), "<?", 2) != 0) {
       // not a header, rewind
       if (!file.seek(0)) {
         qCritical("failed to rewind file");
@@ -113,7 +145,7 @@ void FomodInstallerDialog::initData()
 
 QString FomodInstallerDialog::getName() const
 {
-  return ui->nameEdit->text();
+  return ui->nameCombo->currentText();
 }
 
 
@@ -345,7 +377,8 @@ void FomodInstallerDialog::parseInfo(const QByteArray &data)
     switch (reader.readNext()) {
       case QXmlStreamReader::StartElement: {
         if (reader.name() == "Name") {
-          ui->nameEdit->setText(readContent(reader));
+          m_ModName.update(m_ModName.update(readContent(reader), GUESS_META));
+          updateNameEdit();
         } else if (reader.name() == "Author") {
           ui->authorLabel->setText(readContent(reader));
         } else if (reader.name() == "Version") {
