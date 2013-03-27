@@ -8,6 +8,9 @@
 #include <QStringList>
 
 
+using namespace MOBase;
+
+
 InstallerFomod::InstallerFomod()
 {
 }
@@ -141,7 +144,7 @@ QStringList InstallerFomod::buildFomodTree(DirectoryTree &tree)
 }
 
 
-IPluginInstaller::EInstallResult InstallerFomod::install(QString &modName, DirectoryTree &tree)
+IPluginInstaller::EInstallResult InstallerFomod::install(GuessedValue<QString> &modName, DirectoryTree &tree)
 {
   QStringList installerFiles = buildFomodTree(tree);
   manager()->extractFiles(installerFiles);
@@ -160,15 +163,15 @@ IPluginInstaller::EInstallResult InstallerFomod::install(QString &modName, Direc
     dialog.initData();
 
     if (dialog.exec() == QDialog::Accepted) {
-      modName = dialog.getName();
+      modName.update(dialog.getName(), GUESS_USER);
       DirectoryTree *newTree = dialog.updateTree(&tree);
       tree = *newTree;
-//      delete newTree;
+      delete newTree;
 
       return IPluginInstaller::RESULT_SUCCESS;
     } else {
       if (dialog.manualRequested()) {
-        modName = dialog.getName();
+        modName.update(dialog.getName(), GUESS_USER);
         return IPluginInstaller::RESULT_MANUALREQUESTED;
       } else {
         return IPluginInstaller::RESULT_FAILED;
