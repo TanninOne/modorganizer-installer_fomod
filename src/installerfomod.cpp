@@ -144,7 +144,8 @@ QStringList InstallerFomod::buildFomodTree(DirectoryTree &tree)
 }
 
 
-IPluginInstaller::EInstallResult InstallerFomod::install(GuessedValue<QString> &modName, DirectoryTree &tree)
+IPluginInstaller::EInstallResult InstallerFomod::install(GuessedValue<QString> &modName, DirectoryTree &tree,
+                                                         QString &version, int &modID)
 {
   QStringList installerFiles = buildFomodTree(tree);
   manager()->extractFiles(installerFiles);
@@ -161,6 +162,12 @@ IPluginInstaller::EInstallResult InstallerFomod::install(GuessedValue<QString> &
 
     FomodInstallerDialog dialog(modName, fomodPath);
     dialog.initData();
+    if (!dialog.getVersion().isEmpty()) {
+      version = dialog.getVersion();
+    }
+    if (dialog.getModID() != -1) {
+      modID = dialog.getModID();
+    }
 
     if (dialog.exec() == QDialog::Accepted) {
       modName.update(dialog.getName(), GUESS_USER);

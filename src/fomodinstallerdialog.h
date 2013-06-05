@@ -92,9 +92,19 @@ public:
   bool manualRequested() const { return m_Manual; }
 
   /**
-   * @return QString the (user-modified) name to be used for the mod
+   * @return the (user-modified) name to be used for the mod
    **/
   QString getName() const;
+
+  /**
+   * @return the version of the mod as specified in the fomod info.xml
+   */
+  QString getVersion() const;
+
+  /**
+   * @return the mod id as specified in the info.xml
+   */
+  int getModID() const;
 
   /**
    * @brief retrieve the updated archive tree from the dialog. The caller is responsible to delete the returned tree.
@@ -207,6 +217,8 @@ private:
   Ui::FomodInstallerDialog *ui;
 
   MOBase::GuessedValue<QString> m_ModName;
+
+  int m_ModID;
 
   QString m_FomodPath;
   bool m_Manual;

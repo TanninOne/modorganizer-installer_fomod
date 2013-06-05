@@ -59,7 +59,8 @@ bool PagesDescending(QGroupBox *LHS, QGroupBox *RHS)
 
 
 FomodInstallerDialog::FomodInstallerDialog(const GuessedValue<QString> &modName, const QString &fomodPath, QWidget *parent)
-  : QDialog(parent), ui(new Ui::FomodInstallerDialog), m_ModName(modName), m_FomodPath(fomodPath), m_Manual(false)
+  : QDialog(parent), ui(new Ui::FomodInstallerDialog), m_ModName(modName), m_ModID(-1),
+    m_FomodPath(fomodPath), m_Manual(false)
 {
   ui->setupUi(this);
 
@@ -146,6 +147,16 @@ void FomodInstallerDialog::initData()
 QString FomodInstallerDialog::getName() const
 {
   return ui->nameCombo->currentText();
+}
+
+QString FomodInstallerDialog::getVersion() const
+{
+  return ui->versionLabel->text();
+}
+
+int FomodInstallerDialog::getModID() const
+{
+  return m_ModID;
 }
 
 
@@ -377,12 +388,15 @@ void FomodInstallerDialog::parseInfo(const QByteArray &data)
     switch (reader.readNext()) {
       case QXmlStreamReader::StartElement: {
         if (reader.name() == "Name") {
-          m_ModName.update(m_ModName.update(readContent(reader), GUESS_META));
+          m_ModName.update(readContent(reader), GUESS_META);
+//          m_ModName.update(m_ModName.update(readContent(reader), GUESS_META));
           updateNameEdit();
         } else if (reader.name() == "Author") {
           ui->authorLabel->setText(readContent(reader));
         } else if (reader.name() == "Version") {
           ui->versionLabel->setText(readContent(reader));
+        } else if (reader.name() == "Id") {
+          m_ModID = readContent(reader).toInt();
         } else if (reader.name() == "Website") {
           QString url = readContent(reader);
           ui->websiteLabel->setText(tr("<a href=\"%1\">Link</a>").arg(url));

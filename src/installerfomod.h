@@ -27,7 +27,8 @@ public:
   virtual bool isManualInstaller() const;
 
   virtual bool isArchiveSupported(const MOBase::DirectoryTree &tree) const;
-  virtual EInstallResult install(MOBase::GuessedValue<QString> &modName, MOBase::DirectoryTree &tree);
+  virtual EInstallResult install(MOBase::GuessedValue<QString> &modName, MOBase::DirectoryTree &tree,
+                                 QString &version, int &modID);
 
 private:
 
