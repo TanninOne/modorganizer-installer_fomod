@@ -7,6 +7,10 @@
 TARGET = installerFomod
 TEMPLATE = lib
 
+contains(QT_VERSION, "^5.*") {
+  QT += widgets
+}
+
 CONFIG += plugins
 CONFIG += dll
 
@@ -22,3 +26,6 @@ include(../plugin_template.pri)
 
 FORMS += \
     fomodinstallerdialog.ui
+
+OTHER_FILES += \
+    installerfomod.json
