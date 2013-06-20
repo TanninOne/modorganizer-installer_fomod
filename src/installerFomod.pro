@@ -17,10 +17,12 @@ CONFIG += dll
 DEFINES += INSTALLERFOMOD_LIBRARY
 
 SOURCES += installerfomod.cpp \
-    fomodinstallerdialog.cpp
+    fomodinstallerdialog.cpp \
+    scalelabel.cpp
 
 HEADERS += installerfomod.h \
-    fomodinstallerdialog.h
+    fomodinstallerdialog.h \
+    scalelabel.h
 
 include(../plugin_template.pri)
 

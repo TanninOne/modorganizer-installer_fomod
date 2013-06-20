@@ -119,8 +119,10 @@ void FomodInstallerDialog::initData()
 
   QImage screenshot(QDir::tempPath().append("/screenshot.png"));
   if (!screenshot.isNull()) {
-    screenshot = screenshot.scaledToWidth(ui->screenshotLabel->width());
-    ui->screenshotLabel->setPixmap(QPixmap::fromImage(screenshot));
+/*    if (screenshot.width() > ui->screenshotLabel->maximumWidth()) {
+      screenshot = screenshot.scaledToWidth(ui->screenshotLabel->maximumWidth());
+    }*/
+    ui->screenshotLabel->setScalablePixmap(QPixmap::fromImage(screenshot));
   }
 
   { // parse xml installer file
@@ -246,7 +248,9 @@ void FomodInstallerDialog::copyLeaf(DirectoryTree::Node *sourceTree, const QStri
   for (DirectoryTree::const_leaf_reverse_iterator iter = sourceNode->leafsRBegin();
        iter != sourceNode->leafsREnd(); ++iter) {
     if (iter->getName().compare(sourceName, Qt::CaseInsensitive) == 0) {
-      destinationNode->addLeaf(*iter);
+      FileTreeInformation temp = *iter;
+      temp.setName(destinationName);
+      destinationNode->addLeaf(temp);
       found = true;
     }
   }
@@ -349,8 +353,9 @@ void FomodInstallerDialog::highlightControl(QAbstractButton *button)
       if (screenshot.isNull()) {
         qWarning(">%s< is a null image", screenshotName.toString().toUtf8().constData());
       }
-      screenshot = screenshot.scaledToWidth(ui->screenshotLabel->width());
-      ui->screenshotLabel->setPixmap(QPixmap::fromImage(screenshot));
+//      screenshot = screenshot.scaledToWidth(ui->screenshotLabel->width());
+      ui->screenshotLabel->setScalablePixmap(QPixmap::fromImage(screenshot));
+//      ui->screenshotLabel->setPixmap(QPixmap::fromImage(screenshot));
     } else {
       ui->screenshotLabel->setPixmap(QPixmap());
     }
