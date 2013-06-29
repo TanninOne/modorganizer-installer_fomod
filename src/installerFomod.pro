@@ -14,6 +14,11 @@ contains(QT_VERSION, "^5.*") {
 CONFIG += plugins
 CONFIG += dll
 
+CONFIG(release, debug|release) {
+  QMAKE_CXXFLAGS += /Zi
+  QMAKE_LFLAGS += /DEBUG
+}
+
 DEFINES += INSTALLERFOMOD_LIBRARY
 
 SOURCES += installerfomod.cpp \
