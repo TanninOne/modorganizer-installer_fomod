@@ -306,14 +306,14 @@ DirectoryTree *FomodInstallerDialog::updateTree(DirectoryTree *tree)
 
   for (std::vector<ConditionalInstall>::iterator installIter = m_ConditionalInstalls.begin();
        installIter != m_ConditionalInstalls.end(); ++installIter) {
-    bool match = installIter->m_Operator == ConditionalInstall::OP_AND;
+    bool match = installIter->m_Operator == OP_AND;
     for (std::vector<Condition>::iterator conditionIter = installIter->m_Conditions.begin();
          conditionIter != installIter->m_Conditions.end(); ++conditionIter) {
       bool conditionMatches = testCondition(ui->stepsStack->count(), conditionIter->m_Name, conditionIter->m_Value);
-      if (conditionMatches && (installIter->m_Operator == ConditionalInstall::OP_OR)) {
+      if (conditionMatches && (installIter->m_Operator == OP_OR)) {
         match = true;
         break;
-      } else if (!conditionMatches && (installIter->m_Operator == ConditionalInstall::OP_AND)) {
+      } else if (!conditionMatches && (installIter->m_Operator == OP_AND)) {
         match = false;
         break;
       }
@@ -714,8 +714,19 @@ void FomodInstallerDialog::readGroups(QXmlStreamReader &reader, QLayout *layout)
 }
 
 
-void FomodInstallerDialog::readVisible(QXmlStreamReader &reader, QVariantList &conditions)
+void FomodInstallerDialog::readVisible(QXmlStreamReader &reader, QVariantList &conditions, ConditionOperator &op)
 {
+  if (reader.attributes().hasAttribute("operator")) {
+    QString opName = reader.attributes().value("operator").toString();
+    if (opName == "Or") {
+      op = OP_OR;
+    } else {
+      op = OP_AND;
+    }
+  } else {
+    op = OP_AND;
+  }
+
   while (!((reader.readNext() == QXmlStreamReader::EndElement) &&
            (reader.name() == "visible"))) {
     if (reader.tokenType() == QXmlStreamReader::StartElement) {
@@ -738,6 +749,7 @@ QGroupBox *FomodInstallerDialog::readInstallerStep(QXmlStreamReader &reader)
   QVBoxLayout *scrollLayout = new QVBoxLayout;
 
   QVariantList conditions;
+  ConditionOperator conditionOperator;
 
   while (!((reader.readNext() == QXmlStreamReader::EndElement) &&
            (reader.name() == "installStep"))) {
@@ -745,12 +757,13 @@ QGroupBox *FomodInstallerDialog::readInstallerStep(QXmlStreamReader &reader)
       if (reader.name() == "optionalFileGroups") {
         readGroups(reader, scrollLayout);
       } else if (reader.name() == "visible") {
-        readVisible(reader, conditions);
+        readVisible(reader, conditions, conditionOperator);
       }
     }
   }
   if (conditions.length() != 0) {
     page->setProperty("conditions", conditions);
+    page->setProperty("conditionOperator", conditionOperator);
   }
 
   scrolledArea->setLayout(scrollLayout);
@@ -793,16 +806,16 @@ void FomodInstallerDialog::readInstallerSteps(QXmlStreamReader &reader)
 FomodInstallerDialog::ConditionalInstall FomodInstallerDialog::readConditionalPattern(QXmlStreamReader &reader)
 {
   ConditionalInstall result;
-  result.m_Operator = ConditionalInstall::OP_AND;
+  result.m_Operator = OP_AND;
   while (!((reader.readNext() == QXmlStreamReader::EndElement) &&
            (reader.name() == "pattern"))) {
     if (reader.tokenType() == QXmlStreamReader::StartElement) {
       if (reader.name() == "dependencies") {
         QStringRef dependencyOperator = reader.attributes().value("operator");
         if (dependencyOperator == "And") {
-          result.m_Operator = ConditionalInstall::OP_AND;
+          result.m_Operator = OP_AND;
         } else if (dependencyOperator == "Or") {
-          result.m_Operator = ConditionalInstall::OP_OR;
+          result.m_Operator = OP_OR;
         } // otherwise operator is not set (which we can ignore) or invalid (which we should report actually)
 
         while (!((reader.readNext() == QXmlStreamReader::EndElement) &&
@@ -893,10 +906,19 @@ void FomodInstallerDialog::activateCurrentPage()
   }
 }
 
-
 bool FomodInstallerDialog::testCondition(int maxIndex, const QString &flag, const QString &value)
 {
-  // iterate through all set condition flags on all activated controls on all visible pages if one of them matches the condition
+  // a caching mechanism for previously calculated condition results. otherwise going through multiple pages can get
+  // very slow
+  auto iter = m_ConditionCache.find(flag);
+  if (iter != m_ConditionCache.end()) {
+    return iter->second == value;
+  }
+  if (m_ConditionsUnset.find(flag) != m_ConditionsUnset.end()) {
+    return false;
+  }
+
+  // iterate through all enabled condition flags on all activated controls on all visible pages if one of them matches the condition
   for (int i = 0; i < maxIndex; ++i) {
     if (testVisible(i)) {
       QWidget *page = ui->stepsStack->widget(i);
@@ -908,6 +930,7 @@ bool FomodInstallerDialog::testCondition(int maxIndex, const QString &flag, cons
             QVariantList conditionFlags = temp.toList();
             for (QVariantList::const_iterator iter = conditionFlags.begin(); iter != conditionFlags.end(); ++iter) {
               Condition condition = iter->value<Condition>();
+              m_ConditionCache[condition.m_Name] = condition.m_Value;
               if ((condition.m_Name == flag) && (condition.m_Value == value)) {
                 return true;
               }
@@ -917,6 +940,8 @@ bool FomodInstallerDialog::testCondition(int maxIndex, const QString &flag, cons
       }
     }
   }
+
+  m_ConditionsUnset.insert(flag);
   return false;
 }
 
@@ -925,15 +950,21 @@ bool FomodInstallerDialog::testVisible(int pageIndex)
 {
   QWidget *page = ui->stepsStack->widget(pageIndex);
   QVariant temp = page->property("conditions");
+  int op = page->property("conditionOperator").toInt();
   if (temp.isValid()) {
+    // go through the conditions for this page. returns false if one isn't fulfilled, true otherwise
     QVariantList conditions = temp.toList();
     for (QVariantList::const_iterator iter = conditions.begin(); iter != conditions.end(); ++iter) {
       Condition condition = iter->value<Condition>();
-      if (!testCondition(pageIndex, condition.m_Name, condition.m_Value)) {
+      bool res = testCondition(pageIndex, condition.m_Name, condition.m_Value);
+      if ((op == OP_AND) && !res) {
         return false;
+      } else if ((op == OP_OR) && res) {
+        return true;
       }
     }
-    return true;
+    // for OP_AND this means no condition failed. for OP_OR it means none matched
+    return op == OP_AND;
   } else {
     return true;
   }
@@ -942,10 +973,15 @@ bool FomodInstallerDialog::testVisible(int pageIndex)
 
 bool FomodInstallerDialog::nextPage()
 {
-  int index = ui->stepsStack->currentIndex() + 1;
+  m_ConditionsUnset.clear();
+  int oldIndex = ui->stepsStack->currentIndex();
+
+  int index = oldIndex + 1;
+  // find the next "visible" install step
   while (index < ui->stepsStack->count()) {
     if (testVisible(index)) {
       ui->stepsStack->setCurrentIndex(index);
+      ui->stepsStack->currentWidget()->setProperty("previous", oldIndex);
       return true;
     }
     ++index;
@@ -975,7 +1011,15 @@ void FomodInstallerDialog::on_nextBtn_clicked()
 void FomodInstallerDialog::on_prevBtn_clicked()
 {
   if (ui->stepsStack->currentIndex() != 0) {
-    ui->stepsStack->setCurrentIndex(ui->stepsStack->currentIndex() - 1);
+    int previousIndex = 0;
+    QVariant temp = ui->stepsStack->currentWidget()->property("previous");
+    if (temp.isValid()) {
+      previousIndex = temp.toInt();
+    } else {
+      previousIndex = ui->stepsStack->currentIndex() - 1;
+    }
+    ui->stepsStack->setCurrentIndex(previousIndex);
+    m_ConditionCache.clear();
     ui->nextBtn->setText(tr("Next"));
   }
   if (ui->stepsStack->currentIndex() == 0) {

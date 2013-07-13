@@ -165,11 +165,13 @@ private:
     std::vector<FileDescriptor*> m_Files;
   };
 
+  enum ConditionOperator {
+    OP_AND,
+    OP_OR
+  };
+
   struct ConditionalInstall {
-    enum {
-      OP_AND,
-      OP_OR
-    } m_Operator;
+    ConditionOperator m_Operator;
     std::vector<Condition> m_Conditions;
     std::vector<FileDescriptor*> m_Files;
   };
@@ -195,7 +197,7 @@ private:
   void readPlugins(QXmlStreamReader &reader, GroupType groupType, QLayout *layout);
   void readGroup(QXmlStreamReader &reader, QLayout *layout);
   void readGroups(QXmlStreamReader &reader, QLayout *layout);
-  void readVisible(QXmlStreamReader &reader, QVariantList &conditions);
+  void readVisible(QXmlStreamReader &reader, QVariantList &conditions, ConditionOperator &op);
   QGroupBox *readInstallerStep(QXmlStreamReader &reader);
   ConditionalInstall readConditionalPattern(QXmlStreamReader &reader);
   void readConditionalFileInstalls(QXmlStreamReader &reader);
@@ -223,10 +225,11 @@ private:
   QString m_FomodPath;
   bool m_Manual;
 
-//  ItemOrder m_StepOrder;
-//  std::vector<InstallationStep> m_Steps;
   std::vector<FileDescriptor*> m_RequiredFiles;
   std::vector<ConditionalInstall> m_ConditionalInstalls;
+
+  std::map<QString, QString> m_ConditionCache;
+  std::set<QString> m_ConditionsUnset;
 
 };
 
