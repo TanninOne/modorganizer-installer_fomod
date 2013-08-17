@@ -37,19 +37,48 @@ class FomodInstallerDialog;
 }
 
 
-class Condition : public QObject {
-  Q_OBJECT
+class ValueCondition;
+class SubCondition;
+
+
+class IConditionTester {
 public:
-  Condition(QObject *parent = NULL) : QObject(parent) { }
-  Condition(const Condition &reference) : QObject(reference.parent()), m_Name(reference.m_Name), m_Value(reference.m_Value) { }
-  Condition(const QString &name, const QString &value) : QObject(), m_Name(name), m_Value(value) { }
-  QString m_Name;
-  QString m_Value;
+  virtual bool testCondition(int maxIndex, const ValueCondition *condition) const = 0;
+  virtual bool testCondition(int maxIndex, const SubCondition *condition) const = 0;
+};
+
+
+enum ConditionOperator {
+  OP_AND,
+  OP_OR
+};
+
+class Condition /*: public QObject*/ {
+//  Q_OBJECT
+public:
+  Condition()/*QObject *parent = NULL) : QObject(parent)*/ { }
+  //Condition(const Condition &reference) : QObject(reference.parent()) {}
+  virtual bool test(int maxIndex, const IConditionTester *tester) const = 0;
 private:
   Condition &operator=(const Condition&);
 };
 
-Q_DECLARE_METATYPE(Condition)
+class ValueCondition : public Condition {
+public:
+  ValueCondition(const QString &name, const QString &value) : Condition(), m_Name(name), m_Value(value) { }
+  virtual bool test(int maxIndex, const IConditionTester *tester) const { return tester->testCondition(maxIndex, this); }
+  QString m_Name;
+  QString m_Value;
+};
+
+class SubCondition : public Condition {
+public:
+  virtual bool test(int maxIndex, const IConditionTester *tester) const { return tester->testCondition(maxIndex, this); }
+  ConditionOperator m_Operator;
+  std::vector<Condition*> m_Conditions;
+};
+
+//Q_DECLARE_METATYPE(Condition)
 
 
 class FileDescriptor : public QObject {
@@ -75,7 +104,7 @@ private:
 Q_DECLARE_METATYPE(FileDescriptor*)
 
 
-class FomodInstallerDialog : public QDialog
+class FomodInstallerDialog : public QDialog, IConditionTester
 {
   Q_OBJECT
   
@@ -161,18 +190,12 @@ private:
     QString m_Description;
     QString m_ImagePath;
     PluginType m_Type;
-    std::vector<Condition> m_Conditions;
+    SubCondition *m_Condition;
     std::vector<FileDescriptor*> m_Files;
   };
 
-  enum ConditionOperator {
-    OP_AND,
-    OP_OR
-  };
-
   struct ConditionalInstall {
-    ConditionOperator m_Operator;
-    std::vector<Condition> m_Conditions;
+    SubCondition m_Condition;
     std::vector<FileDescriptor*> m_Files;
   };
 
@@ -200,12 +223,15 @@ private:
   void readVisible(QXmlStreamReader &reader, QVariantList &conditions, ConditionOperator &op);
   QGroupBox *readInstallerStep(QXmlStreamReader &reader);
   ConditionalInstall readConditionalPattern(QXmlStreamReader &reader);
+  void readConditionalDependency(QXmlStreamReader &reader, SubCondition &conditional);
   void readConditionalFileInstalls(QXmlStreamReader &reader);
   void readInstallerSteps(QXmlStreamReader &reader);
   void parseModuleConfig(const QByteArray &data);
   void highlightControl(QAbstractButton *button);
 
-  bool testCondition(int maxIndex, const QString &flag, const QString &value);
+  bool testCondition(int maxIndex, const QString &flag, const QString &value) const;
+  virtual bool testCondition(int maxIndex, const ValueCondition *condition) const;
+  virtual bool testCondition(int maxIndex, const SubCondition *condition) const;
   bool testVisible(int pageIndex);
   bool nextPage();
   void activateCurrentPage();

@@ -279,6 +279,7 @@ bool FomodInstallerDialog::copyFileIterator(DirectoryTree *sourceTree, Directory
   QString source = (m_FomodPath.length() != 0) ? (m_FomodPath + "\\" + descriptor->m_Source)
                                                : descriptor->m_Source;
   QString destination = descriptor->m_Destination;
+  qDebug("install file %s -> %s", qPrintable(source), qPrintable(destination));
   try {
     if (descriptor->m_IsFolder) {
       DirectoryTree::Node *sourceNode = findNode(sourceTree, source, false);
@@ -296,6 +297,31 @@ bool FomodInstallerDialog::copyFileIterator(DirectoryTree *sourceTree, Directory
 }
 
 
+bool FomodInstallerDialog::testCondition(int maxIndex, const ValueCondition *valCondition) const
+{
+  return testCondition(maxIndex, valCondition->m_Name, valCondition->m_Value);
+}
+
+
+bool FomodInstallerDialog::testCondition(int maxIndex, const SubCondition *condition) const
+{
+  bool match = condition->m_Operator == OP_AND;
+  for (auto conditionIter = condition->m_Conditions.begin();
+       conditionIter != condition->m_Conditions.end(); ++conditionIter) {
+    bool conditionMatches = (*conditionIter)->test(maxIndex, this);
+    if (conditionMatches && (condition->m_Operator == OP_OR)) {
+      match = true;
+      break;
+    } else if (!conditionMatches && (condition->m_Operator == OP_AND)) {
+      match = false;
+      break;
+    }
+  }
+  return match;
+}
+
+//#error "incomplete support for nested conditions. heap-allocated conditions aren't cleaned up yet"
+
 DirectoryTree *FomodInstallerDialog::updateTree(DirectoryTree *tree)
 {
   DirectoryTree *newTree = new DirectoryTree;
@@ -306,19 +332,8 @@ DirectoryTree *FomodInstallerDialog::updateTree(DirectoryTree *tree)
 
   for (std::vector<ConditionalInstall>::iterator installIter = m_ConditionalInstalls.begin();
        installIter != m_ConditionalInstalls.end(); ++installIter) {
-    bool match = installIter->m_Operator == OP_AND;
-    for (std::vector<Condition>::iterator conditionIter = installIter->m_Conditions.begin();
-         conditionIter != installIter->m_Conditions.end(); ++conditionIter) {
-      bool conditionMatches = testCondition(ui->stepsStack->count(), conditionIter->m_Name, conditionIter->m_Value);
-      if (conditionMatches && (installIter->m_Operator == OP_OR)) {
-        match = true;
-        break;
-      } else if (!conditionMatches && (installIter->m_Operator == OP_AND)) {
-        match = false;
-        break;
-      }
-    }
-    if (match) {
+    SubCondition *condition = &installIter->m_Condition;
+    if (condition->test(ui->stepsStack->count(), this)) {
       for (std::vector<FileDescriptor*>::iterator fileIter = installIter->m_Files.begin();
            fileIter != installIter->m_Files.end(); ++fileIter) {
         copyFileIterator(tree, newTree, *fileIter);
@@ -521,7 +536,7 @@ void FomodInstallerDialog::readConditionFlags(QXmlStreamReader &reader, Plugin &
     if (reader.tokenType() == QXmlStreamReader::StartElement) {
       if (reader.name() == "flag") {
         QString name = reader.attributes().value("name").toString();
-        plugin.m_Conditions.push_back(Condition(name, readContent(reader)));
+        plugin.m_Condition->m_Conditions.push_back(new ValueCondition(name, readContent(reader)));
       }
     }
   }
@@ -639,9 +654,10 @@ void FomodInstallerDialog::readPlugins(QXmlStreamReader &reader, GroupType group
         }
         newControl->setProperty("files", fileList);
         QVariantList conditionFlags;
-        for (std::vector<Condition>::const_iterator iter = plugin.m_Conditions.begin(); iter != plugin.m_Conditions.end(); ++iter) {
-          if (iter->m_Name.length() != 0) {
-            conditionFlags.append(qVariantFromValue(Condition(iter->m_Name, iter->m_Value)));
+        for (std::vector<Condition*>::const_iterator iter = plugin.m_Condition->m_Conditions.begin();
+             iter != plugin.m_Condition->m_Conditions.end(); ++iter) {
+          if ((*iter)->m_Name.length() != 0) {
+            conditionFlags.append(qVariantFromValue(new ValueCondition((*iter)->m_Name, (*iter)->m_Value)));
           }
         }
         newControl->setProperty("conditionFlags", conditionFlags);
@@ -803,30 +819,40 @@ void FomodInstallerDialog::readInstallerSteps(QXmlStreamReader &reader)
 }
 
 
+void FomodInstallerDialog::readConditionalDependency(QXmlStreamReader &reader, SubCondition &conditional)
+{
+  QStringRef dependencyOperator = reader.attributes().value("operator");
+  if (dependencyOperator == "And") {
+    conditional.m_Operator = OP_AND;
+  } else if (dependencyOperator == "Or") {
+    conditional.m_Operator = OP_OR;
+  } // otherwise operator is not set (which we can ignore) or invalid (which we should report actually)
+
+  while (!((reader.readNext() == QXmlStreamReader::EndElement) &&
+           (reader.name() == "dependencies"))) {
+    if (reader.tokenType() == QXmlStreamReader::StartElement) {
+      if (reader.name() == "flagDependency") {
+        conditional.m_Conditions.push_back(new Condition(reader.attributes().value("flag").toString(),
+                                                         reader.attributes().value("value").toString()));
+      } else if (reader.name() == "dependencies") {
+        SubCondition *nested = new SubCondition();
+        readConditionalDependency(reader, *nested);
+        conditional.m_Conditions.push_back(nested);
+      }
+    }
+  }
+}
+
+
 FomodInstallerDialog::ConditionalInstall FomodInstallerDialog::readConditionalPattern(QXmlStreamReader &reader)
 {
   ConditionalInstall result;
-  result.m_Operator = OP_AND;
+  result.m_Condition.m_Operator = OP_AND;
   while (!((reader.readNext() == QXmlStreamReader::EndElement) &&
            (reader.name() == "pattern"))) {
     if (reader.tokenType() == QXmlStreamReader::StartElement) {
       if (reader.name() == "dependencies") {
-        QStringRef dependencyOperator = reader.attributes().value("operator");
-        if (dependencyOperator == "And") {
-          result.m_Operator = OP_AND;
-        } else if (dependencyOperator == "Or") {
-          result.m_Operator = OP_OR;
-        } // otherwise operator is not set (which we can ignore) or invalid (which we should report actually)
-
-        while (!((reader.readNext() == QXmlStreamReader::EndElement) &&
-                 (reader.name() == "dependencies"))) {
-          if (reader.tokenType() == QXmlStreamReader::StartElement) {
-            if (reader.name() == "flagDependency") {
-              result.m_Conditions.push_back(Condition(reader.attributes().value("flag").toString(),
-                                                      reader.attributes().value("value").toString()));
-            }
-          }
-        }
+        readConditionalDependency(reader, result.m_Condition);
       } else if (reader.name() == "files") {
         readFileList(reader, result.m_Files);
       }
@@ -906,7 +932,7 @@ void FomodInstallerDialog::activateCurrentPage()
   }
 }
 
-bool FomodInstallerDialog::testCondition(int maxIndex, const QString &flag, const QString &value)
+bool FomodInstallerDialog::testCondition(int maxIndex, const QString &flag, const QString &value) const
 {
   // a caching mechanism for previously calculated condition results. otherwise going through multiple pages can get
   // very slow
