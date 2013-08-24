@@ -53,11 +53,9 @@ enum ConditionOperator {
   OP_OR
 };
 
-class Condition /*: public QObject*/ {
-//  Q_OBJECT
+class Condition {
 public:
-  Condition()/*QObject *parent = NULL) : QObject(parent)*/ { }
-  //Condition(const Condition &reference) : QObject(reference.parent()) {}
+  Condition() { }
   virtual bool test(int maxIndex, const IConditionTester *tester) const = 0;
 private:
   Condition &operator=(const Condition&);
@@ -65,6 +63,7 @@ private:
 
 class ValueCondition : public Condition {
 public:
+  ValueCondition() : Condition(), m_Name(), m_Value() {}
   ValueCondition(const QString &name, const QString &value) : Condition(), m_Name(name), m_Value(value) { }
   virtual bool test(int maxIndex, const IConditionTester *tester) const { return tester->testCondition(maxIndex, this); }
   QString m_Name;
@@ -78,7 +77,7 @@ public:
   std::vector<Condition*> m_Conditions;
 };
 
-//Q_DECLARE_METATYPE(Condition)
+Q_DECLARE_METATYPE(ValueCondition)
 
 
 class FileDescriptor : public QObject {
@@ -190,7 +189,7 @@ private:
     QString m_Description;
     QString m_ImagePath;
     PluginType m_Type;
-    SubCondition *m_Condition;
+    SubCondition m_Condition;
     std::vector<FileDescriptor*> m_Files;
   };
 
@@ -232,7 +231,7 @@ private:
   bool testCondition(int maxIndex, const QString &flag, const QString &value) const;
   virtual bool testCondition(int maxIndex, const ValueCondition *condition) const;
   virtual bool testCondition(int maxIndex, const SubCondition *condition) const;
-  bool testVisible(int pageIndex);
+  bool testVisible(int pageIndex) const;
   bool nextPage();
   void activateCurrentPage();
   void moveTree(MOBase::DirectoryTree::Node *target, MOBase::DirectoryTree::Node *source);
@@ -254,8 +253,8 @@ private:
   std::vector<FileDescriptor*> m_RequiredFiles;
   std::vector<ConditionalInstall> m_ConditionalInstalls;
 
-  std::map<QString, QString> m_ConditionCache;
-  std::set<QString> m_ConditionsUnset;
+  mutable std::map<QString, QString> m_ConditionCache;
+  mutable std::set<QString> m_ConditionsUnset;
 
 };
 

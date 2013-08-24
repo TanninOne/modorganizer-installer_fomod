@@ -535,8 +535,10 @@ void FomodInstallerDialog::readConditionFlags(QXmlStreamReader &reader, Plugin &
            (reader.name() == "conditionFlags"))) {
     if (reader.tokenType() == QXmlStreamReader::StartElement) {
       if (reader.name() == "flag") {
-        QString name = reader.attributes().value("name").toString();
-        plugin.m_Condition->m_Conditions.push_back(new ValueCondition(name, readContent(reader)));
+        QStringRef var = reader.attributes().value("name");
+        QString name = var.toString();
+        QString content = readContent(reader);
+        plugin.m_Condition.m_Conditions.push_back(new ValueCondition(name, content));
       }
     }
   }
@@ -654,10 +656,11 @@ void FomodInstallerDialog::readPlugins(QXmlStreamReader &reader, GroupType group
         }
         newControl->setProperty("files", fileList);
         QVariantList conditionFlags;
-        for (std::vector<Condition*>::const_iterator iter = plugin.m_Condition->m_Conditions.begin();
-             iter != plugin.m_Condition->m_Conditions.end(); ++iter) {
-          if ((*iter)->m_Name.length() != 0) {
-            conditionFlags.append(qVariantFromValue(new ValueCondition((*iter)->m_Name, (*iter)->m_Value)));
+        for (std::vector<Condition*>::const_iterator iter = plugin.m_Condition.m_Conditions.begin();
+             iter != plugin.m_Condition.m_Conditions.end(); ++iter) {
+          ValueCondition *condition = dynamic_cast<ValueCondition*>(*iter);
+          if ((condition != NULL) && (condition->m_Name.length() != 0)) {
+            conditionFlags.append(qVariantFromValue(ValueCondition(condition->m_Name, condition->m_Value)));
           }
         }
         newControl->setProperty("conditionFlags", conditionFlags);
@@ -747,8 +750,8 @@ void FomodInstallerDialog::readVisible(QXmlStreamReader &reader, QVariantList &c
            (reader.name() == "visible"))) {
     if (reader.tokenType() == QXmlStreamReader::StartElement) {
       if (reader.name() == "flagDependency") {
-        Condition condition(reader.attributes().value("flag").toString(),
-                            reader.attributes().value("value").toString());
+        ValueCondition condition(reader.attributes().value("flag").toString(),
+                                 reader.attributes().value("value").toString());
         conditions.append(qVariantFromValue(condition));
       }
     }
@@ -832,8 +835,8 @@ void FomodInstallerDialog::readConditionalDependency(QXmlStreamReader &reader, S
            (reader.name() == "dependencies"))) {
     if (reader.tokenType() == QXmlStreamReader::StartElement) {
       if (reader.name() == "flagDependency") {
-        conditional.m_Conditions.push_back(new Condition(reader.attributes().value("flag").toString(),
-                                                         reader.attributes().value("value").toString()));
+        conditional.m_Conditions.push_back(new ValueCondition(reader.attributes().value("flag").toString(),
+                                                              reader.attributes().value("value").toString()));
       } else if (reader.name() == "dependencies") {
         SubCondition *nested = new SubCondition();
         readConditionalDependency(reader, *nested);
@@ -955,7 +958,7 @@ bool FomodInstallerDialog::testCondition(int maxIndex, const QString &flag, cons
           if (temp.isValid()) {
             QVariantList conditionFlags = temp.toList();
             for (QVariantList::const_iterator iter = conditionFlags.begin(); iter != conditionFlags.end(); ++iter) {
-              Condition condition = iter->value<Condition>();
+              ValueCondition condition = iter->value<ValueCondition>();
               m_ConditionCache[condition.m_Name] = condition.m_Value;
               if ((condition.m_Name == flag) && (condition.m_Value == value)) {
                 return true;
@@ -972,7 +975,7 @@ bool FomodInstallerDialog::testCondition(int maxIndex, const QString &flag, cons
 }
 
 
-bool FomodInstallerDialog::testVisible(int pageIndex)
+bool FomodInstallerDialog::testVisible(int pageIndex) const
 {
   QWidget *page = ui->stepsStack->widget(pageIndex);
   QVariant temp = page->property("conditions");
@@ -981,7 +984,7 @@ bool FomodInstallerDialog::testVisible(int pageIndex)
     // go through the conditions for this page. returns false if one isn't fulfilled, true otherwise
     QVariantList conditions = temp.toList();
     for (QVariantList::const_iterator iter = conditions.begin(); iter != conditions.end(); ++iter) {
-      Condition condition = iter->value<Condition>();
+      ValueCondition condition = iter->value<ValueCondition>();
       bool res = testCondition(pageIndex, condition.m_Name, condition.m_Value);
       if ((op == OP_AND) && !res) {
         return false;
