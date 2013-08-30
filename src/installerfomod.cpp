@@ -38,7 +38,7 @@ QString InstallerFomod::description() const
 
 VersionInfo InstallerFomod::version() const
 {
-  return VersionInfo(1, 2, 0, VersionInfo::RELEASE_FINAL);
+  return VersionInfo(1, 2, 1, VersionInfo::RELEASE_FINAL);
 }
 
 bool InstallerFomod::isActive() const
@@ -139,6 +139,7 @@ QStringList InstallerFomod::buildFomodTree(DirectoryTree &tree)
   }
 
   appendImageFiles(result, &tree);
+  qDebug("%s", qPrintable(result.join("\n")));
 
   return result;
 }
@@ -148,7 +149,7 @@ IPluginInstaller::EInstallResult InstallerFomod::install(GuessedValue<QString> &
                                                          QString &version, int &modID)
 {
   QStringList installerFiles = buildFomodTree(tree);
-  manager()->extractFiles(installerFiles);
+  manager()->extractFiles(installerFiles, false);
 
   try {
     const DirectoryTree *fomodTree = findFomodDirectory(&tree);

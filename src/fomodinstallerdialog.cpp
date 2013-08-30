@@ -366,11 +366,10 @@ void FomodInstallerDialog::highlightControl(QAbstractButton *button)
       QString temp = QFileInfo(screenshotFileName).fileName();
       QImage screenshot(QDir::tempPath().append("/").append(temp));
       if (screenshot.isNull()) {
-        qWarning(">%s< is a null image", screenshotName.toString().toUtf8().constData());
+        qWarning(">%s< is a null image", screenshotFileName.toUtf8().constData());
       }
-//      screenshot = screenshot.scaledToWidth(ui->screenshotLabel->width());
-      ui->screenshotLabel->setScalablePixmap(QPixmap::fromImage(screenshot));
-//      ui->screenshotLabel->setPixmap(QPixmap::fromImage(screenshot));
+      QPixmap tempPix = QPixmap::fromImage(screenshot);
+      ui->screenshotLabel->setScalablePixmap(tempPix);
     } else {
       ui->screenshotLabel->setPixmap(QPixmap());
     }
