@@ -139,7 +139,6 @@ QStringList InstallerFomod::buildFomodTree(DirectoryTree &tree)
   }
 
   appendImageFiles(result, &tree);
-  qDebug("%s", qPrintable(result.join("\n")));
 
   return result;
 }

@@ -102,7 +102,7 @@ int FomodInstallerDialog::bomOffset(const QByteArray &buffer)
 void FomodInstallerDialog::initData()
 {
   { // parse provided package information
-    QFile file(QDir::tempPath().append("/info.xml"));
+    QFile file(QDir::tempPath().append("/fomod/info.xml"));
     if (file.open(QIODevice::ReadOnly)) {
       // nmm's xml parser is less strict than the one from qt and allows files with
       // wrong encoding in the header. Being strict here would be bad user experience
@@ -117,7 +117,7 @@ void FomodInstallerDialog::initData()
     file.close();
   }
 
-  QImage screenshot(QDir::tempPath().append("/screenshot.png"));
+  QImage screenshot(QDir::tempPath().append("/fomod/screenshot.png"));
   if (!screenshot.isNull()) {
 /*    if (screenshot.width() > ui->screenshotLabel->maximumWidth()) {
       screenshot = screenshot.scaledToWidth(ui->screenshotLabel->maximumWidth());
@@ -126,7 +126,7 @@ void FomodInstallerDialog::initData()
   }
 
   { // parse xml installer file
-    QFile file(QDir::tempPath().append("/ModuleConfig.xml"));
+    QFile file(QDir::tempPath().append("/fomod/ModuleConfig.xml"));
     if (!file.open(QIODevice::ReadOnly)) {
       throw MyException(tr("ModuleConfig.xml missing"));
     }
@@ -364,9 +364,10 @@ void FomodInstallerDialog::highlightControl(QAbstractButton *button)
     QString screenshotFileName = screenshotName.toString();
     if (!screenshotFileName.isEmpty()) {
       QString temp = QFileInfo(screenshotFileName).fileName();
-      QImage screenshot(QDir::tempPath().append("/").append(temp));
+      temp = QDir::tempPath().append("/").append(screenshotFileName);
+      QImage screenshot(temp);
       if (screenshot.isNull()) {
-        qWarning(">%s< is a null image", screenshotFileName.toUtf8().constData());
+        qWarning(">%s< is a null image", temp.toUtf8().constData());
       }
       QPixmap tempPix = QPixmap::fromImage(screenshot);
       ui->screenshotLabel->setScalablePixmap(tempPix);
