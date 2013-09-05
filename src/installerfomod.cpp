@@ -159,7 +159,6 @@ IPluginInstaller::EInstallResult InstallerFomod::install(GuessedValue<QString> &
       fomodPath.prepend(current->getData().name);
       current = current->getParent();
     }
-
     FomodInstallerDialog dialog(modName, fomodPath);
     dialog.initData();
     if (!dialog.getVersion().isEmpty()) {
