@@ -642,7 +642,7 @@ void FomodInstallerDialog::readPlugins(QXmlStreamReader &reader, GroupType group
           } break;
           case TYPE_COULDBEUSABLE: {
             newControl->setCheckable(true);
-            newControl->setIcon(QIcon(":/new/guiresources/resources/dialog-warning_16.png"));
+            newControl->setIcon(QIcon(":/new/guiresources/warning_16"));
             newControl->setToolTip(tr("You may be experiencing instability in combination with other installed plugins"));
           } break;
         }
