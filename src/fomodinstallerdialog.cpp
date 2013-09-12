@@ -279,7 +279,6 @@ bool FomodInstallerDialog::copyFileIterator(DirectoryTree *sourceTree, Directory
   QString source = (m_FomodPath.length() != 0) ? (m_FomodPath + "\\" + descriptor->m_Source)
                                                : descriptor->m_Source;
   QString destination = descriptor->m_Destination;
-  qDebug("install file %s -> %s", qPrintable(source), qPrintable(destination));
   try {
     if (descriptor->m_IsFolder) {
       DirectoryTree::Node *sourceNode = findNode(sourceTree, source, false);
