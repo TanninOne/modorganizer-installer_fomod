@@ -325,10 +325,12 @@ DirectoryTree *FomodInstallerDialog::updateTree(DirectoryTree *tree)
 {
   DirectoryTree *newTree = new DirectoryTree;
 
+  // enable all required files
   for (std::vector<FileDescriptor*>::iterator iter = m_RequiredFiles.begin(); iter != m_RequiredFiles.end(); ++iter) {
     copyFileIterator(tree, newTree, *iter);
   }
 
+  // enable all conditional file installs (files programatically selected by conditions instead of a user selection. usually dependencies)
   for (std::vector<ConditionalInstall>::iterator installIter = m_ConditionalInstalls.begin();
        installIter != m_ConditionalInstalls.end(); ++installIter) {
     SubCondition *condition = &installIter->m_Condition;
@@ -340,15 +342,21 @@ DirectoryTree *FomodInstallerDialog::updateTree(DirectoryTree *tree)
     }
   }
 
-  QList<QAbstractButton*> choices = ui->stepsStack->findChildren<QAbstractButton*>("choice");
-  foreach (QAbstractButton* choice, choices) {
-    if (choice->isChecked()) {
-      QVariantList fileList = choice->property("files").toList();
-      foreach (QVariant fileVariant, fileList) {
-        copyFileIterator(tree, newTree, fileVariant.value<FileDescriptor*>());
+  // enable all user-enabled choices
+  for (int i = 0; i < ui->stepsStack->count(); ++i) {
+    if (testVisible(i)) {
+      QList<QAbstractButton*> choices = ui->stepsStack->widget(i)->findChildren<QAbstractButton*>("choice");
+      foreach (QAbstractButton* choice, choices) {
+        if (choice->isChecked()) {
+          QVariantList fileList = choice->property("files").toList();
+          foreach (QVariant fileVariant, fileList) {
+            copyFileIterator(tree, newTree, fileVariant.value<FileDescriptor*>());
+          }
+        }
       }
     }
   }
+
 
 //  dumpTree(newTree, 0);
 
