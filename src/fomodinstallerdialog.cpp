@@ -119,9 +119,6 @@ void FomodInstallerDialog::initData()
 
   QImage screenshot(QDir::tempPath() + "/" + m_FomodPath + "/fomod/screenshot.png");
   if (!screenshot.isNull()) {
-/*    if (screenshot.width() > ui->screenshotLabel->maximumWidth()) {
-      screenshot = screenshot.scaledToWidth(ui->screenshotLabel->maximumWidth());
-    }*/
     ui->screenshotLabel->setScalablePixmap(QPixmap::fromImage(screenshot));
   }
 
@@ -145,7 +142,6 @@ void FomodInstallerDialog::initData()
   }
 }
 
-
 QString FomodInstallerDialog::getName() const
 {
   return ui->nameCombo->currentText();
@@ -160,7 +156,6 @@ int FomodInstallerDialog::getModID() const
 {
   return m_ModID;
 }
-
 
 void FomodInstallerDialog::moveTree(DirectoryTree::Node *target, DirectoryTree::Node *source)
 {
@@ -182,7 +177,6 @@ DirectoryTree::Node *FomodInstallerDialog::findNode(DirectoryTree::Node *node, c
     return node;
   }
 
-//  static QRegExp pathSeparator("[/\\]");
   int pos = path.indexOf('\\');
   if (pos == -1) {
     pos = path.indexOf('/');
@@ -357,7 +351,6 @@ DirectoryTree *FomodInstallerDialog::updateTree(DirectoryTree *tree)
     }
   }
 
-
 //  dumpTree(newTree, 0);
 
   return newTree;
@@ -371,7 +364,7 @@ void FomodInstallerDialog::highlightControl(QAbstractButton *button)
     QString screenshotFileName = screenshotName.toString();
     if (!screenshotFileName.isEmpty()) {
       QString temp = QFileInfo(screenshotFileName).fileName();
-      temp = QDir::tempPath() + "/" + m_FomodPath + "/" + screenshotFileName;
+      temp = QDir::tempPath() + "/" + m_FomodPath + "/" + QDir::fromNativeSeparators(screenshotFileName);
       QImage screenshot(temp);
       if (screenshot.isNull()) {
         qWarning(">%s< is a null image", temp.toUtf8().constData());
@@ -416,7 +409,6 @@ void FomodInstallerDialog::parseInfo(const QByteArray &data)
       case QXmlStreamReader::StartElement: {
         if (reader.name() == "Name") {
           m_ModName.update(readContent(reader), GUESS_META);
-//          m_ModName.update(m_ModName.update(readContent(reader), GUESS_META));
           updateNameEdit();
         } else if (reader.name() == "Author") {
           ui->authorLabel->setText(readContent(reader));
@@ -565,8 +557,6 @@ FomodInstallerDialog::Plugin FomodInstallerDialog::readPlugin(QXmlStreamReader &
 
   while (!((reader.readNext() == QXmlStreamReader::EndElement) &&
            (reader.name() == "plugin"))) {
-//    QXmlStreamReader::TokenType type = reader.tokenType();
-//    QString name = reader.name().toUtf8();
     if (reader.tokenType() == QXmlStreamReader::StartElement) {
       if (reader.name() == "description") {
         result.m_Description = readContent(reader).trimmed();
