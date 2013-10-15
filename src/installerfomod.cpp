@@ -38,7 +38,7 @@ QString InstallerFomod::description() const
 
 VersionInfo InstallerFomod::version() const
 {
-  return VersionInfo(1, 2, 4, VersionInfo::RELEASE_FINAL);
+  return VersionInfo(1, 2, 5, VersionInfo::RELEASE_FINAL);
 }
 
 bool InstallerFomod::isActive() const

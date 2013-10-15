@@ -940,8 +940,10 @@ bool FomodInstallerDialog::testCondition(int maxIndex, const QString &flag, cons
   if (iter != m_ConditionCache.end()) {
     return iter->second == value;
   }
+  // unset and set conditions are stored separately since the unset conditions need to be flushed when we move to the next page (condition
+  // could be set there) while the set conditions need to be flushed when we move back in in the installer
   if (m_ConditionsUnset.find(flag) != m_ConditionsUnset.end()) {
-    return false;
+    return value.isEmpty();
   }
 
   // iterate through all enabled condition flags on all activated controls on all visible pages if one of them matches the condition
@@ -966,9 +968,8 @@ bool FomodInstallerDialog::testCondition(int maxIndex, const QString &flag, cons
       }
     }
   }
-
   m_ConditionsUnset.insert(flag);
-  return false;
+  return value.isEmpty();
 }
 
 
