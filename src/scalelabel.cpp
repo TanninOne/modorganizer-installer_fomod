@@ -14,7 +14,7 @@ void ScaleLabel::setScalablePixmap(const QPixmap &pixmap)
 
 void ScaleLabel::resizeEvent(QResizeEvent *event)
 {
-  if (!pixmap()->isNull() && !m_Original.isNull()) {
+  if ((pixmap() != NULL) && !pixmap()->isNull() && !m_Original.isNull()) {
     setPixmap(m_Original.scaled(event->size(), Qt::KeepAspectRatio));
   }
 }

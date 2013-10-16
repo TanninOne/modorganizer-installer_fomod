@@ -23,6 +23,7 @@ along with Mod Organizer.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <guessedvalue.h>
 #include <directorytree.h>
+#include <ipluginlist.h>
 #include <QDialog>
 #include <QAbstractButton>
 #include <QXmlStreamReader>
@@ -30,6 +31,7 @@ along with Mod Organizer.  If not, see <http://www.gnu.org/licenses/>.
 #include <QSharedPointer>
 #include <QMetaType>
 #include <QVariantList>
+#include <functional>
 
 
 namespace Ui {
@@ -39,12 +41,14 @@ class FomodInstallerDialog;
 
 class ValueCondition;
 class SubCondition;
+class FileCondition;
 
 
 class IConditionTester {
 public:
   virtual bool testCondition(int maxIndex, const ValueCondition *condition) const = 0;
   virtual bool testCondition(int maxIndex, const SubCondition *condition) const = 0;
+  virtual bool testCondition(int maxIndex, const FileCondition *condition) const = 0;
 };
 
 
@@ -68,6 +72,15 @@ public:
   virtual bool test(int maxIndex, const IConditionTester *tester) const { return tester->testCondition(maxIndex, this); }
   QString m_Name;
   QString m_Value;
+};
+
+class FileCondition : public Condition {
+public:
+  FileCondition() : Condition(), m_File(), m_State() {}
+  FileCondition(const QString &file, const QString &state) : Condition(), m_File(file), m_State(state) {}
+  virtual bool test(int maxIndex, const IConditionTester *tester) const { return tester->testCondition(maxIndex, this); }
+  QString m_File;
+  QString m_State;
 };
 
 class SubCondition : public Condition {
@@ -103,13 +116,15 @@ private:
 Q_DECLARE_METATYPE(FileDescriptor*)
 
 
-class FomodInstallerDialog : public QDialog, IConditionTester
+class FomodInstallerDialog : public QDialog, public IConditionTester
 {
   Q_OBJECT
-  
+
 public:
   explicit FomodInstallerDialog(const MOBase::GuessedValue<QString> &modName,
-                                const QString &fomodPath, QWidget *parent = 0);
+                                const QString &fomodPath,
+                                const std::function<MOBase::IPluginList::PluginState (const QString &)> fileCheck,
+                                QWidget *parent = 0);
   ~FomodInstallerDialog();
 
   void initData();
@@ -143,6 +158,8 @@ public:
    * @return DataTree* a new tree with only the selected options and directories arranged correctly. The caller takes custody of this pointer!
    **/
   MOBase::DirectoryTree *updateTree(MOBase::DirectoryTree *tree);
+
+  bool hasOptions();
 
 protected:
 
@@ -231,6 +248,7 @@ private:
   bool testCondition(int maxIndex, const QString &flag, const QString &value) const;
   virtual bool testCondition(int maxIndex, const ValueCondition *condition) const;
   virtual bool testCondition(int maxIndex, const SubCondition *condition) const;
+  virtual bool testCondition(int maxIndex, const FileCondition *condition) const;
   bool testVisible(int pageIndex) const;
   bool nextPage();
   void activateCurrentPage();
@@ -238,6 +256,8 @@ private:
   MOBase::DirectoryTree::Node *findNode(MOBase::DirectoryTree::Node *node, const QString &path, bool create);
   void copyLeaf(MOBase::DirectoryTree::Node *sourceTree, const QString &sourcePath,
                 MOBase::DirectoryTree::Node *destinationTree, const QString &destinationPath);
+
+  static QString toString(MOBase::IPluginList::PluginState state);
 
 private:
 
@@ -255,6 +275,8 @@ private:
 
   mutable std::map<QString, QString> m_ConditionCache;
   mutable std::set<QString> m_ConditionsUnset;
+
+  std::function<MOBase::IPluginList::PluginState (const QString&)> m_FileCheck;
 
 };
 

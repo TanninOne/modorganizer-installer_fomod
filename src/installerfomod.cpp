@@ -144,6 +144,12 @@ QStringList InstallerFomod::buildFomodTree(DirectoryTree &tree)
 }
 
 
+IPluginList::PluginState InstallerFomod::fileState(const QString &fileName)
+{
+  return m_MOInfo->pluginList()->state(fileName);
+}
+
+
 IPluginInstaller::EInstallResult InstallerFomod::install(GuessedValue<QString> &modName, DirectoryTree &tree,
                                                          QString &version, int &modID)
 {
@@ -159,7 +165,7 @@ IPluginInstaller::EInstallResult InstallerFomod::install(GuessedValue<QString> &
       fomodPath.prepend(current->getData().name);
       current = current->getParent();
     }
-    FomodInstallerDialog dialog(modName, fomodPath);
+    FomodInstallerDialog dialog(modName, fomodPath, std::bind(&InstallerFomod::fileState, this, std::placeholders::_1));
     dialog.initData();
     if (!dialog.getVersion().isEmpty()) {
       version = dialog.getVersion();
@@ -168,7 +174,7 @@ IPluginInstaller::EInstallResult InstallerFomod::install(GuessedValue<QString> &
       modID = dialog.getModID();
     }
 
-    if (dialog.exec() == QDialog::Accepted) {
+    if (!dialog.hasOptions() || (dialog.exec() == QDialog::Accepted)) {
       modName.update(dialog.getName(), GUESS_USER);
       DirectoryTree *newTree = dialog.updateTree(&tree);
       tree = *newTree;

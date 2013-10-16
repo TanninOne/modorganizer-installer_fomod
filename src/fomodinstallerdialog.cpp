@@ -58,9 +58,11 @@ bool PagesDescending(QGroupBox *LHS, QGroupBox *RHS)
 }
 
 
-FomodInstallerDialog::FomodInstallerDialog(const GuessedValue<QString> &modName, const QString &fomodPath, QWidget *parent)
+FomodInstallerDialog::FomodInstallerDialog(const GuessedValue<QString> &modName, const QString &fomodPath,
+                                           const std::function<MOBase::IPluginList::PluginState(const QString &)> fileCheck,
+                                           QWidget *parent)
   : QDialog(parent), ui(new Ui::FomodInstallerDialog), m_ModName(modName), m_ModID(-1),
-    m_FomodPath(fomodPath), m_Manual(false)
+    m_FomodPath(fomodPath), m_Manual(false), m_FileCheck(fileCheck)
 {
   ui->setupUi(this);
 
@@ -70,6 +72,12 @@ FomodInstallerDialog::FomodInstallerDialog(const GuessedValue<QString> &modName,
 FomodInstallerDialog::~FomodInstallerDialog()
 {
   delete ui;
+}
+
+
+bool FomodInstallerDialog::hasOptions()
+{
+  return ui->stepsStack->count() > 0;
 }
 
 
@@ -253,7 +261,6 @@ void FomodInstallerDialog::copyLeaf(DirectoryTree::Node *sourceTree, const QStri
   }
 }
 
-
 void dumpTree(DirectoryTree::Node *node, int indent)
 {
   for (DirectoryTree::const_leaf_reverse_iterator iter = node->leafsRBegin();
@@ -312,6 +319,25 @@ bool FomodInstallerDialog::testCondition(int maxIndex, const SubCondition *condi
   }
   return match;
 }
+
+
+QString FomodInstallerDialog::toString(IPluginList::PluginState state)
+{
+  switch (state) {
+    case IPluginList::STATE_MISSING: return "Missing";
+    case IPluginList::STATE_INACTIVE: return "Inactive";
+    case IPluginList::STATE_ACTIVE: return "Active";
+  }
+  throw MyException(tr("invalid plugin state %1").arg(state));
+}
+
+
+bool FomodInstallerDialog::testCondition(int, const FileCondition *condition) const
+{
+  return toString(m_FileCheck(condition->m_File)) == condition->m_State;
+}
+
+
 
 //#error "incomplete support for nested conditions. heap-allocated conditions aren't cleaned up yet"
 
@@ -838,6 +864,9 @@ void FomodInstallerDialog::readConditionalDependency(QXmlStreamReader &reader, S
         SubCondition *nested = new SubCondition();
         readConditionalDependency(reader, *nested);
         conditional.m_Conditions.push_back(nested);
+      } else if (reader.name() == "fileDependency") {
+        conditional.m_Conditions.push_back(new FileCondition(reader.attributes().value("file").toString(),
+                                                             reader.attributes().value("state").toString()));
       }
     }
   }

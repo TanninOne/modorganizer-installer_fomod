@@ -46,10 +46,11 @@ private:
 
   void appendImageFiles(QStringList &result, MOBase::DirectoryTree *tree);
   QString getFullPath(const MOBase::DirectoryTree *tree, const MOBase::FileTreeInformation &file);
+  MOBase::IPluginList::PluginState fileState(const QString &fileName);
 
 private:
 
-  const MOBase::IOrganizer *m_MOInfo;
+  MOBase::IOrganizer *m_MOInfo;
 
 };
 
