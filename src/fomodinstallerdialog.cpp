@@ -640,6 +640,8 @@ void FomodInstallerDialog::readPlugins(QXmlStreamReader &reader, GroupType group
           } break;
         }
         newControl->setObjectName("choice");
+        newControl->setAttribute(Qt::WA_Hover);
+
         switch (plugin.m_Type) {
           case TYPE_REQUIRED: {
             newControl->setChecked(true);
