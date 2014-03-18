@@ -426,6 +426,19 @@ QString FomodInstallerDialog::readContent(QXmlStreamReader &reader)
 }
 
 
+QString FomodInstallerDialog::readContentUntil(QXmlStreamReader &reader, const QString &endTag)
+{
+  QString result;
+  while (!((reader.readNext() == QXmlStreamReader::EndElement) &&
+           (reader.name().compare(endTag) == 0))) {
+    if (reader.tokenType() == QXmlStreamReader::Characters) {
+      result += reader.text().toString();
+    }
+  }
+  return result;
+}
+
+
 void FomodInstallerDialog::parseInfo(const QByteArray &data)
 {
   QXmlStreamReader reader(data);
@@ -585,7 +598,7 @@ FomodInstallerDialog::Plugin FomodInstallerDialog::readPlugin(QXmlStreamReader &
            (reader.name() == "plugin"))) {
     if (reader.tokenType() == QXmlStreamReader::StartElement) {
       if (reader.name() == "description") {
-        result.m_Description = readContent(reader).trimmed();
+        result.m_Description = readContentUntil(reader, "description").trimmed();
       } else if (reader.name() == "image") {
         result.m_ImagePath = reader.attributes().value("path").toString();
       } else if (reader.name() == "typeDescriptor") {

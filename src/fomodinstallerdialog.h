@@ -218,6 +218,7 @@ private:
 private:
 
   QString readContent(QXmlStreamReader &reader);
+  QString readContentUntil(QXmlStreamReader &reader, const QString &endTag);
   void parseInfo(const QByteArray &data);
 
   void updateNameEdit();
