@@ -66,6 +66,8 @@ FomodInstallerDialog::FomodInstallerDialog(const GuessedValue<QString> &modName,
 {
   ui->setupUi(this);
 
+  setWindowTitle(modName);
+
   updateNameEdit();
 }
 
