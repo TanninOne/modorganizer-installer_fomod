@@ -229,7 +229,7 @@ private:
   static PluginType getPluginType(const QString &typeString);
   static bool byPriority(const FileDescriptor *LHS, const FileDescriptor *RHS);
 
-  bool copyFileIterator(MOBase::DirectoryTree *sourceTree, MOBase::DirectoryTree *destinationTree, FileDescriptor *descriptor);
+  bool copyFileIterator(MOBase::DirectoryTree *sourceTree, MOBase::DirectoryTree *destinationTree, const FileDescriptor *descriptor);
   void readFileList(QXmlStreamReader &reader, std::vector<FileDescriptor*> &fileList);
   void readPluginType(QXmlStreamReader &reader, Plugin &plugin);
   void readConditionFlags(QXmlStreamReader &reader, Plugin &plugin);

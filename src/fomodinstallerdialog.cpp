@@ -277,7 +277,7 @@ void dumpTree(DirectoryTree::Node *node, int indent)
 }
 
 
-bool FomodInstallerDialog::copyFileIterator(DirectoryTree *sourceTree, DirectoryTree *destinationTree, FileDescriptor *descriptor)
+bool FomodInstallerDialog::copyFileIterator(DirectoryTree *sourceTree, DirectoryTree *destinationTree, const FileDescriptor *descriptor)
 {
   QString source = (m_FomodPath.length() != 0) ? (m_FomodPath + "\\" + descriptor->m_Source)
                                                : descriptor->m_Source;
@@ -345,11 +345,11 @@ bool FomodInstallerDialog::testCondition(int, const FileCondition *condition) co
 
 DirectoryTree *FomodInstallerDialog::updateTree(DirectoryTree *tree)
 {
-  DirectoryTree *newTree = new DirectoryTree;
+  std::vector<FileDescriptor*> descriptorList;
 
   // enable all required files
   for (std::vector<FileDescriptor*>::iterator iter = m_RequiredFiles.begin(); iter != m_RequiredFiles.end(); ++iter) {
-    copyFileIterator(tree, newTree, *iter);
+    descriptorList.push_back(*iter);
   }
 
   // enable all conditional file installs (files programatically selected by conditions instead of a user selection. usually dependencies)
@@ -359,7 +359,7 @@ DirectoryTree *FomodInstallerDialog::updateTree(DirectoryTree *tree)
     if (condition->test(ui->stepsStack->count(), this)) {
       for (std::vector<FileDescriptor*>::iterator fileIter = installIter->m_Files.begin();
            fileIter != installIter->m_Files.end(); ++fileIter) {
-        copyFileIterator(tree, newTree, *fileIter);
+        descriptorList.push_back(*fileIter);
       }
     }
   }
@@ -372,7 +372,7 @@ DirectoryTree *FomodInstallerDialog::updateTree(DirectoryTree *tree)
         if (choice->isChecked()) {
           QVariantList fileList = choice->property("files").toList();
           foreach (QVariant fileVariant, fileList) {
-            copyFileIterator(tree, newTree, fileVariant.value<FileDescriptor*>());
+            descriptorList.push_back(fileVariant.value<FileDescriptor*>());
           }
         }
       }
@@ -380,6 +380,16 @@ DirectoryTree *FomodInstallerDialog::updateTree(DirectoryTree *tree)
   }
 
 //  dumpTree(newTree, 0);
+
+  std::sort(descriptorList.begin(), descriptorList.end(), [] (FileDescriptor *lhs, FileDescriptor *rhs) -> bool {
+        return lhs->m_Priority < rhs->m_Priority;
+      });
+
+  DirectoryTree *newTree = new DirectoryTree;
+
+  foreach (const FileDescriptor *file, descriptorList) {
+    copyFileIterator(tree, newTree, file);
+  }
 
   return newTree;
 }
@@ -540,7 +550,7 @@ void FomodInstallerDialog::readFileList(QXmlStreamReader &reader, std::vector<Fi
         file->m_Source = attributes.value("source").toString();
         file->m_Destination = attributes.hasAttribute("destination") ? attributes.value("destination").toString()
                                                                      : file->m_Source;
-        file->m_Priority = attributes.hasAttribute("priority") ? attributes.value("priority").string()->toInt()
+        file->m_Priority = attributes.hasAttribute("priority") ? attributes.value("priority").toString().toInt()
                                                                : 0;
         file->m_IsFolder = reader.name() == "folder";
         file->m_InstallIfUsable = attributes.hasAttribute("installIfUsable") ? (attributes.value("installIfUsable").compare("true") == 0)
