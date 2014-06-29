@@ -69,6 +69,7 @@ FomodInstallerDialog::FomodInstallerDialog(const GuessedValue<QString> &modName,
   setWindowTitle(modName);
 
   updateNameEdit();
+  ui->nameCombo->setAutoCompletionCaseSensitivity(Qt::CaseSensitive);
 }
 
 FomodInstallerDialog::~FomodInstallerDialog()
