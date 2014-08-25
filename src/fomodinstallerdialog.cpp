@@ -548,7 +548,6 @@ void FomodInstallerDialog::readFileList(QXmlStreamReader &reader, std::vector<Fi
     if (reader.tokenType() == QXmlStreamReader::StartElement) {
       if ((reader.name() == "folder") ||
           (reader.name() == "file")) {
-        openTag = reader.name();
         QXmlStreamAttributes attributes = reader.attributes();
         FileDescriptor *file = new FileDescriptor(this);
         file->m_Source = attributes.value("source").toString();
