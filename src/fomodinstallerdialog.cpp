@@ -59,7 +59,7 @@ bool PagesDescending(QGroupBox *LHS, QGroupBox *RHS)
 
 
 FomodInstallerDialog::FomodInstallerDialog(const GuessedValue<QString> &modName, const QString &fomodPath,
-                                           const std::function<MOBase::IPluginList::PluginState(const QString &)> fileCheck,
+                                           const std::function<MOBase::IPluginList::PluginState(const QString &)> &fileCheck,
                                            QWidget *parent)
   : QDialog(parent), ui(new Ui::FomodInstallerDialog), m_ModName(modName), m_ModID(-1),
     m_FomodPath(fomodPath), m_Manual(false), m_FileCheck(fileCheck)
@@ -402,8 +402,7 @@ void FomodInstallerDialog::highlightControl(QAbstractButton *button)
   if (screenshotName.isValid()) {
     QString screenshotFileName = screenshotName.toString();
     if (!screenshotFileName.isEmpty()) {
-      QString temp = QFileInfo(screenshotFileName).fileName();
-      temp = QDir::tempPath() + "/" + m_FomodPath + "/" + QDir::fromNativeSeparators(screenshotFileName);
+      QString temp = QDir::tempPath() + "/" + m_FomodPath + "/" + QDir::fromNativeSeparators(screenshotFileName);
       QImage screenshot(temp);
       if (screenshot.isNull()) {
         qWarning(">%s< is a null image", temp.toUtf8().constData());

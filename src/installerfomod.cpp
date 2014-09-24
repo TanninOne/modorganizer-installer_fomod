@@ -12,6 +12,7 @@ using namespace MOBase;
 
 
 InstallerFomod::InstallerFomod()
+  : m_MOInfo(NULL)
 {
 }
 

@@ -123,7 +123,7 @@ class FomodInstallerDialog : public QDialog, public IConditionTester
 public:
   explicit FomodInstallerDialog(const MOBase::GuessedValue<QString> &modName,
                                 const QString &fomodPath,
-                                const std::function<MOBase::IPluginList::PluginState (const QString &)> fileCheck,
+                                const std::function<MOBase::IPluginList::PluginState (const QString &)> &fileCheck,
                                 QWidget *parent = 0);
   ~FomodInstallerDialog();
 
