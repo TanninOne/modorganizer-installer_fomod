@@ -3,13 +3,14 @@
 
 
 #include <iplugininstallersimple.h>
+#include <iplugindiagnose.h>
 
 
-class InstallerFomod : public MOBase::IPluginInstallerSimple
+class InstallerFomod : public MOBase::IPluginInstallerSimple, public MOBase::IPluginDiagnose
 {
 
   Q_OBJECT
-  Q_INTERFACES(MOBase::IPlugin MOBase::IPluginInstaller MOBase::IPluginInstallerSimple)
+  Q_INTERFACES(MOBase::IPlugin MOBase::IPluginInstaller MOBase::IPluginInstallerSimple MOBase::IPluginDiagnose)
 #if QT_VERSION >= QT_VERSION_CHECK(5,0,0)
   Q_PLUGIN_METADATA(IID "org.tannin.InstallerFomod" FILE "installerfomod.json")
 #endif
@@ -33,6 +34,14 @@ public:
   virtual EInstallResult install(MOBase::GuessedValue<QString> &modName, MOBase::DirectoryTree &tree,
                                  QString &version, int &modID);
 
+public: // IPluginDiagnose interface
+
+  virtual std::vector<unsigned int> activeProblems() const;
+  virtual QString shortDescription(unsigned int key) const;
+  virtual QString fullDescription(unsigned int key) const;
+  virtual bool hasGuidedFix(unsigned int key) const;
+  virtual void startGuidedFix(unsigned int key) const;
+
 private:
 
   const MOBase::DirectoryTree *findFomodDirectory(const MOBase::DirectoryTree *tree) const;
@@ -47,6 +56,10 @@ private:
   void appendImageFiles(QStringList &result, MOBase::DirectoryTree *tree);
   QString getFullPath(const MOBase::DirectoryTree *tree, const MOBase::FileTreeInformation &file);
   MOBase::IPluginList::PluginState fileState(const QString &fileName);
+
+private:
+
+  static const unsigned int PROBLEM_IMAGETYPE_UNSUPPORTED = 1;
 
 private:
 

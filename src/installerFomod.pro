@@ -27,10 +27,12 @@ HEADERS += installerfomod.h \
     fomodinstallerdialog.h \
     scalelabel.h
 
-include(../plugin_template.pri)
-
 FORMS += \
     fomodinstallerdialog.ui
 
 OTHER_FILES += \
     installerfomod.json
+
+include(../plugin_template.pri)
+
+INCLUDEPATH += "$${BOOSTPATH}"

@@ -28,6 +28,7 @@ along with Mod Organizer.  If not, see <http://www.gnu.org/licenses/>.
 #include <QCheckBox>
 #include <QRadioButton>
 #include <QScrollArea>
+#include <QTextCodec>
 #include <Shellapi.h>
 
 
@@ -110,6 +111,13 @@ int FomodInstallerDialog::bomOffset(const QByteArray &buffer)
 
 #pragma message("implement module dependencies->file dependencies")
 
+
+struct XmlParseError : std::runtime_error {
+  XmlParseError(const QString &message)
+    : std::runtime_error(message.toUtf8().constData()) {}
+};
+
+
 void FomodInstallerDialog::initData()
 {
   { // parse provided package information
@@ -123,7 +131,25 @@ void FomodInstallerDialog::initData()
         // not a header, rewind
         file.seek(0);
       }
-      parseInfo(file.readAll());
+
+      QByteArray headerlessData = file.readAll();
+      std::string errorMessage;
+
+      bool success = false;
+      // try parsing the file with several encodings to support broken files
+      for (const char *encoding : { "utf-16", "utf-8", "iso-8859-1" }) {
+        try {
+          QTextCodec *codec = QTextCodec::codecForName(encoding);
+          parseInfo(codec->fromUnicode(QString("<?xml version=\"1.0\" encoding=\"%1\" ?>").arg(encoding)) + headerlessData);
+          success = true;
+          break;
+        } catch (const XmlParseError &e) {
+          errorMessage = e.what();
+        }
+      }
+      if (!success) {
+        reportError(tr("Failed to parse ModuleConfig.xml: %1").arg(errorMessage.c_str()));
+      }
     }
     file.close();
   }
@@ -143,12 +169,32 @@ void FomodInstallerDialog::initData()
     // this works around bad headers.
     QByteArray header = file.readLine();
     if (strncmp(header.constData() + bomOffset(header), "<?", 2) != 0) {
+      qDebug("no xml-header");
       // not a header, rewind
       if (!file.seek(0)) {
         qCritical("failed to rewind file");
       }
     }
-    parseModuleConfig(file.readAll());
+
+    QByteArray headerlessData = file.readAll();
+    std::string errorMessage;
+
+    bool success = false;
+    // try parsing the file with several encodings to support broken files
+    for (const char *encoding : { "utf-16", "utf-8", "iso-8859-1" }) {
+      try {
+        QTextCodec *codec = QTextCodec::codecForName(encoding);
+        parseModuleConfig(codec->fromUnicode(QString("<?xml version=\"1.0\" encoding=\"%1\" ?>").arg(encoding)) + headerlessData);
+        success = true;
+        break;
+      } catch (const XmlParseError &e) {
+        errorMessage = e.what();
+      }
+    }
+    if (!success) {
+      reportError(tr("Failed to parse ModuleConfig.xml: %1").arg(errorMessage.c_str()));
+    }
+
     file.close();
   }
 }
@@ -405,10 +451,11 @@ void FomodInstallerDialog::highlightControl(QAbstractButton *button)
       QString temp = QDir::tempPath() + "/" + m_FomodPath + "/" + QDir::fromNativeSeparators(screenshotFileName);
       QImage screenshot(temp);
       if (screenshot.isNull()) {
-        qWarning(">%s< is a null image", temp.toUtf8().constData());
+        qWarning(">%s< is a null image", qPrintable(temp));
+      } else {
+        QPixmap tempPix = QPixmap::fromImage(screenshot);
+        ui->screenshotLabel->setScalablePixmap(tempPix);
       }
-      QPixmap tempPix = QPixmap::fromImage(screenshot);
-      ui->screenshotLabel->setScalablePixmap(tempPix);
     } else {
       ui->screenshotLabel->setPixmap(QPixmap());
     }
@@ -478,11 +525,7 @@ void FomodInstallerDialog::parseInfo(const QByteArray &data)
     }
   }
   if (reader.hasError()) {
-    throw MyException(tr("failed to parse info.xml: %1 (%2) (line %3, column %4)")
-                        .arg(reader.errorString())
-                        .arg(reader.error())
-                        .arg(reader.lineNumber())
-                        .arg(reader.columnNumber()));
+    throw XmlParseError(QString("%1 in line %2").arg(reader.errorString()).arg(reader.lineNumber()));
   }
 }
 
@@ -972,7 +1015,7 @@ void FomodInstallerDialog::parseModuleConfig(const QByteArray &data)
     }
   }
   if (reader.hasError()) {
-    reportError(tr("failed to parse ModuleConfig.xml: %1 - %2").arg(reader.errorString()).arg(reader.lineNumber()));
+    throw XmlParseError(QString("%1 in line %2").arg(reader.errorString()).arg(reader.lineNumber()));
   }
   activateCurrentPage();
 }

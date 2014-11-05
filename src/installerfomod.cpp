@@ -3,9 +3,12 @@
 
 #include <report.h>
 #include <iinstallationmanager.h>
+#include <utility.h>
 
 #include <QtPlugin>
 #include <QStringList>
+#include <QImageReader>
+#include <QDebug>
 
 
 using namespace MOBase;
@@ -39,7 +42,7 @@ QString InstallerFomod::description() const
 
 VersionInfo InstallerFomod::version() const
 {
-  return VersionInfo(1, 4, 0, VersionInfo::RELEASE_FINAL);
+  return VersionInfo(1, 5, 0, VersionInfo::RELEASE_FINAL);
 }
 
 bool InstallerFomod::isActive() const
@@ -199,3 +202,44 @@ IPluginInstaller::EInstallResult InstallerFomod::install(GuessedValue<QString> &
 #if QT_VERSION < QT_VERSION_CHECK(5,0,0)
 Q_EXPORT_PLUGIN2(installerFomod, InstallerFomod)
 #endif
+
+
+std::vector<unsigned int> InstallerFomod::activeProblems() const
+{
+  std::vector<unsigned int> result;
+  QList<QByteArray> formats = QImageReader::supportedImageFormats();
+  if (!formats.contains("jpg")) {
+    result.push_back(PROBLEM_IMAGETYPE_UNSUPPORTED);
+  }
+  return result;
+}
+
+QString InstallerFomod::shortDescription(unsigned int key) const
+{
+  switch (key) {
+    case PROBLEM_IMAGETYPE_UNSUPPORTED:
+      return tr("image formats not supported.");
+    default:
+      throw MyException(tr("invalid problem key %1").arg(key));
+  }
+}
+
+QString InstallerFomod::fullDescription(unsigned int key) const
+{
+  switch (key) {
+    case PROBLEM_IMAGETYPE_UNSUPPORTED:
+      return tr("This indicates that files from dlls/imageformats are missing from your MO installation or outdated. "
+                "Images in installers may not be displayed. Please re-install MO");
+    default:
+      throw MyException(tr("invalid problem key %1").arg(key));
+  }
+}
+
+bool InstallerFomod::hasGuidedFix(unsigned int) const
+{
+  return false;
+}
+
+void InstallerFomod::startGuidedFix(unsigned int) const
+{
+}
