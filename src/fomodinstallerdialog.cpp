@@ -30,6 +30,7 @@ along with Mod Organizer.  If not, see <http://www.gnu.org/licenses/>.
 #include <QScrollArea>
 #include <QTextCodec>
 #include <Shellapi.h>
+#include <boost/assign.hpp>
 
 
 using namespace MOBase;
@@ -137,7 +138,7 @@ void FomodInstallerDialog::initData()
 
       bool success = false;
       // try parsing the file with several encodings to support broken files
-      for (const char *encoding : { "utf-16", "utf-8", "iso-8859-1" }) {
+      foreach (const char *encoding, boost::assign::list_of("utf-16")("utf-8")("iso-8859-1")) {
         try {
           QTextCodec *codec = QTextCodec::codecForName(encoding);
           parseInfo(codec->fromUnicode(QString("<?xml version=\"1.0\" encoding=\"%1\" ?>").arg(encoding)) + headerlessData);
@@ -181,7 +182,7 @@ void FomodInstallerDialog::initData()
 
     bool success = false;
     // try parsing the file with several encodings to support broken files
-    for (const char *encoding : { "utf-16", "utf-8", "iso-8859-1" }) {
+    foreach (const char *encoding, boost::assign::list_of("utf-16")("utf-8")("iso-8859-1")) {
       try {
         QTextCodec *codec = QTextCodec::codecForName(encoding);
         parseModuleConfig(codec->fromUnicode(QString("<?xml version=\"1.0\" encoding=\"%1\" ?>").arg(encoding)) + headerlessData);
