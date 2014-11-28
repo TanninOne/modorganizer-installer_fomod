@@ -15,7 +15,7 @@ using namespace MOBase;
 
 
 InstallerFomod::InstallerFomod()
-  : m_MOInfo(NULL)
+  : m_MOInfo(nullptr)
 {
 }
 
@@ -82,14 +82,14 @@ const DirectoryTree *InstallerFomod::findFomodDirectory(const DirectoryTree *tre
   if ((tree->numNodes() == 1) && (tree->numLeafs() == 0)) {
     return findFomodDirectory(*tree->nodesBegin());
   }
-  return NULL;
+  return nullptr;
 }
 
 
 bool InstallerFomod::isArchiveSupported(const DirectoryTree &tree) const
 {
   const DirectoryTree *fomodDir = findFomodDirectory(&tree);
-  if (fomodDir != NULL) {
+  if (fomodDir != nullptr) {
     for (DirectoryTree::const_leaf_iterator fileIter = fomodDir->leafsBegin();
          fileIter != fomodDir->leafsEnd(); ++fileIter) {
       if (fileIter->getName().compare("ModuleConfig.xml", Qt::CaseInsensitive) == 0) {
@@ -105,7 +105,7 @@ QString InstallerFomod::getFullPath(const DirectoryTree *tree, const FileTreeInf
 {
   QString result;
   const DirectoryTree *current = tree;
-  while (current != NULL) {
+  while (current != nullptr) {
     result.prepend(current->getData().name + "/");
     current = current->getParent();
   }
@@ -165,7 +165,7 @@ IPluginInstaller::EInstallResult InstallerFomod::install(GuessedValue<QString> &
 
     QString fomodPath;
     const DirectoryTree *current = fomodTree->getParent();
-    while (current != NULL) {
+    while (current != nullptr) {
       fomodPath.prepend(current->getData().name);
       current = current->getParent();
     }
