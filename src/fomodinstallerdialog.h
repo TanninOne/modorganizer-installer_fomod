@@ -219,7 +219,9 @@ private:
 
   QString readContent(QXmlStreamReader &reader);
   QString readContentUntil(QXmlStreamReader &reader, const QString &endTag);
-  void parseInfo(const QByteArray &data);
+  void readInfoXml();
+  void readModuleConfigXml();
+  void parseInfo(QXmlStreamReader &data);
 
   void updateNameEdit();
 
@@ -243,7 +245,7 @@ private:
   void readConditionalDependency(QXmlStreamReader &reader, SubCondition &conditional);
   void readConditionalFileInstalls(QXmlStreamReader &reader);
   void readInstallerSteps(QXmlStreamReader &reader);
-  void parseModuleConfig(const QByteArray &data);
+  void parseModuleConfig(QXmlStreamReader &data);
   void highlightControl(QAbstractButton *button);
 
   bool testCondition(int maxIndex, const QString &flag, const QString &value) const;
