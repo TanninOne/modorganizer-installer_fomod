@@ -30,6 +30,7 @@ along with Mod Organizer.  If not, see <http://www.gnu.org/licenses/>.
 #include <QScrollArea>
 #include <QTextCodec>
 #include <Shellapi.h>
+#include <boost/assign.hpp>
 
 
 using namespace MOBase;
@@ -117,86 +118,142 @@ struct XmlParseError : std::runtime_error {
     : std::runtime_error(message.toUtf8().constData()) {}
 };
 
-
-void FomodInstallerDialog::initData()
+QByteArray skipXmlHeader(QIODevice &file)
 {
-  { // parse provided package information
-    QFile file(QDir::tempPath() + "/" + m_FomodPath + "/fomod/info.xml");
-    if (file.open(QIODevice::ReadOnly)) {
+  static const unsigned char UTF16LE_BOM[] = { 0xFF, 0xFE };
+  static const unsigned char UTF16BE_BOM[] = { 0xFE, 0xFF };
+  static const unsigned char UTF8_BOM[]    = { 0xEF, 0xBB, 0xBF };
+  static const unsigned char UTF16LE[]     = { 0x3C, 0x00, 0x3F, 0x00 };
+  static const unsigned char UTF16BE[]     = { 0x00, 0x3C, 0x00, 0x3F };
+  static const unsigned char UTF8[]        = { 0x3C, 0x3F, 0x78, 0x6D };
+
+  file.seek(0);
+  QByteArray rawBytes = file.read(4);
+  QTextStream stream(&file);
+  int bom = 0;
+  if (rawBytes.startsWith((const char*)UTF16LE_BOM)) {
+    stream.setCodec("UTF16-LE");
+    bom = 2;
+  } else if (rawBytes.startsWith((const char*)UTF16BE_BOM)) {
+    stream.setCodec("UTF16-BE");
+    bom = 2;
+  } else if (rawBytes.startsWith((const char*)UTF8_BOM)) {
+    stream.setCodec("UTF8");
+    bom = 3;
+  } else if (rawBytes.startsWith((const char*)UTF16LE)) {
+    stream.setCodec("UTF16-LE");
+  } else if (rawBytes.startsWith((const char*)UTF16BE)) {
+    stream.setCodec("UTF16-BE");
+  } else if (rawBytes.startsWith((const char*)UTF8)) {
+    stream.setCodec("UTF8");
+  } // otherwise maybe the textstream knows the encoding?
+
+  stream.seek(bom);
+  QString header = stream.readLine();
+  if (!header.startsWith("<?")) {
+    // it was all for nothing, there is no header here...
+    stream.seek(bom);
+  }
+  return file.readAll();
+}
+
+void FomodInstallerDialog::readInfoXml()
+{
+  QFile file(QDir::tempPath() + "/" + m_FomodPath + "/fomod/info.xml");
+  if (file.open(QIODevice::ReadOnly)) {
+    bool success = false;
+    std::string errorMessage;
+    try {
+      QXmlStreamReader reader(&file);
+      parseInfo(reader);
+      success = true;
+    } catch (const XmlParseError &e) {
+      errorMessage = e.what();
+    }
+
+    if (!success) {
       // nmm's xml parser is less strict than the one from qt and allows files with
       // wrong encoding in the header. Being strict here would be bad user experience
       // this works around bad headers.
-      QByteArray header = file.readLine();
-      if (strncmp(header.constData() + bomOffset(header), "<?", 2) != 0) {
-        // not a header, rewind
-        file.seek(0);
-      }
+      QByteArray headerlessData = skipXmlHeader(file);
 
-      QByteArray headerlessData = file.readAll();
-      std::string errorMessage;
-
-      bool success = false;
       // try parsing the file with several encodings to support broken files
-      for (const char *encoding : { "utf-16", "utf-8", "iso-8859-1" }) {
+      foreach (const char *encoding, boost::assign::list_of("utf-16")("utf-8")("iso-8859-1")) {
+        qDebug("trying encoding %s", encoding);
         try {
           QTextCodec *codec = QTextCodec::codecForName(encoding);
-          parseInfo(codec->fromUnicode(QString("<?xml version=\"1.0\" encoding=\"%1\" ?>").arg(encoding)) + headerlessData);
+          QXmlStreamReader reader(codec->fromUnicode(QString("<?xml version=\"1.0\" encoding=\"%1\" ?>").arg(encoding)) + headerlessData);
+          parseInfo(reader);
+          qDebug("interpreting as %s", encoding);
           success = true;
           break;
         } catch (const XmlParseError &e) {
-          errorMessage = e.what();
+          qDebug("not %s: %s", encoding, e.what());
         }
       }
       if (!success) {
-        reportError(tr("Failed to parse ModuleConfig.xml: %1").arg(errorMessage.c_str()));
+        reportError(tr("Failed to parse ModuleConfig.xml. See console for details"));
       }
     }
     file.close();
   }
+}
+
+void FomodInstallerDialog::readModuleConfigXml()
+{
+  QFile file(QDir::tempPath() + "/" + m_FomodPath + "/fomod/ModuleConfig.xml");
+  if (!file.open(QIODevice::ReadOnly)) {
+    throw MyException(tr("ModuleConfig.xml missing"));
+  }
+
+  bool success = false;
+  std::string errorMessage;
+  try {
+    QXmlStreamReader reader(&file);
+    parseModuleConfig(reader);
+    success = true;
+  } catch (const XmlParseError &e) {
+    qWarning("the ModuleConfig.xml in this file is incorrectly encoded (%s). Applying heuristics...", e.what());
+  }
+
+  if (!success) {
+    // nmm's xml parser is less strict than the one from qt and allows files with
+    // wrong encoding in the header. Being strict here would be bad user experience
+    // this works around bad headers.
+    QByteArray headerlessData = skipXmlHeader(file);
+
+    // try parsing the file with several encodings to support broken files
+    foreach (const char *encoding, boost::assign::list_of("utf-16")("utf-8")("iso-8859-1")) {
+      try {
+        QTextCodec *codec = QTextCodec::codecForName(encoding);
+        QXmlStreamReader reader(codec->fromUnicode(QString("<?xml version=\"1.0\" encoding=\"%1\" ?>").arg(encoding)) + headerlessData);
+        parseModuleConfig(reader);
+        qDebug("interpreting as %s", encoding);
+        success = true;
+        break;
+      } catch (const XmlParseError &e) {
+        qDebug("not %s: %s", encoding, e.what());
+      }
+    }
+    if (!success) {
+      reportError(tr("Failed to parse ModuleConfig.xml. See console for details"));
+    }
+
+    file.close();
+  }
+}
+
+void FomodInstallerDialog::initData()
+{
+  // parse provided package information
+  readInfoXml();
 
   QImage screenshot(QDir::tempPath() + "/" + m_FomodPath + "/fomod/screenshot.png");
   if (!screenshot.isNull()) {
     ui->screenshotLabel->setScalablePixmap(QPixmap::fromImage(screenshot));
   }
 
-  { // parse xml installer file
-    QFile file(QDir::tempPath() + "/" + m_FomodPath + "/fomod/ModuleConfig.xml");
-    if (!file.open(QIODevice::ReadOnly)) {
-      throw MyException(tr("ModuleConfig.xml missing"));
-    }
-    // nmm's xml parser is less strict than the one from qt and allows files with
-    // wrong encoding in the header. Being strict here would be bad user experience
-    // this works around bad headers.
-    QByteArray header = file.readLine();
-    if (strncmp(header.constData() + bomOffset(header), "<?", 2) != 0) {
-      qDebug("no xml-header");
-      // not a header, rewind
-      if (!file.seek(0)) {
-        qCritical("failed to rewind file");
-      }
-    }
-
-    QByteArray headerlessData = file.readAll();
-    std::string errorMessage;
-
-    bool success = false;
-    // try parsing the file with several encodings to support broken files
-    for (const char *encoding : { "utf-16", "utf-8", "iso-8859-1" }) {
-      try {
-        QTextCodec *codec = QTextCodec::codecForName(encoding);
-        parseModuleConfig(codec->fromUnicode(QString("<?xml version=\"1.0\" encoding=\"%1\" ?>").arg(encoding)) + headerlessData);
-        success = true;
-        break;
-      } catch (const XmlParseError &e) {
-        errorMessage = e.what();
-      }
-    }
-    if (!success) {
-      reportError(tr("Failed to parse ModuleConfig.xml: %1").arg(errorMessage.c_str()));
-    }
-
-    file.close();
-  }
+  readModuleConfigXml();
 }
 
 QString FomodInstallerDialog::getName() const
@@ -499,10 +556,8 @@ QString FomodInstallerDialog::readContentUntil(QXmlStreamReader &reader, const Q
 }
 
 
-void FomodInstallerDialog::parseInfo(const QByteArray &data)
+void FomodInstallerDialog::parseInfo(QXmlStreamReader &reader)
 {
-  QXmlStreamReader reader(data);
-
   while (!reader.atEnd() && !reader.hasError()) {
     switch (reader.readNext()) {
       case QXmlStreamReader::StartElement: {
@@ -997,9 +1052,8 @@ void FomodInstallerDialog::readConditionalFileInstalls(QXmlStreamReader &reader)
 }
 
 
-void FomodInstallerDialog::parseModuleConfig(const QByteArray &data)
+void FomodInstallerDialog::parseModuleConfig(QXmlStreamReader &reader)
 {
-  QXmlStreamReader reader(data);
   while (!reader.atEnd() && !reader.hasError()) {
     switch (reader.readNext()) {
       case QXmlStreamReader::StartElement: {
