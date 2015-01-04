@@ -524,7 +524,7 @@ void FomodInstallerDialog::highlightControl(QAbstractButton *button)
 bool FomodInstallerDialog::eventFilter(QObject *object, QEvent *event)
 {
   QAbstractButton *button = qobject_cast<QAbstractButton*>(object);
-  if ((button != NULL) && (event->type() == QEvent::HoverEnter)) {
+  if ((button != nullptr) && (event->type() == QEvent::HoverEnter)) {
     highlightControl(button);
 
   }
@@ -748,7 +748,7 @@ void FomodInstallerDialog::readPlugins(QXmlStreamReader &reader, GroupType group
     if (reader.tokenType() == QXmlStreamReader::StartElement) {
       if (reader.name() == "plugin") {
         Plugin plugin = readPlugin(reader);
-        QAbstractButton *newControl = NULL;
+        QAbstractButton *newControl = nullptr;
         switch (groupType) {
           case TYPE_SELECTATLEASTONE:
           case TYPE_SELECTANY: {
@@ -814,7 +814,7 @@ void FomodInstallerDialog::readPlugins(QXmlStreamReader &reader, GroupType group
         for (std::vector<Condition*>::const_iterator iter = plugin.m_Condition.m_Conditions.begin();
              iter != plugin.m_Condition.m_Conditions.end(); ++iter) {
           ValueCondition *condition = dynamic_cast<ValueCondition*>(*iter);
-          if ((condition != NULL) && (condition->m_Name.length() != 0)) {
+          if ((condition != nullptr) && (condition->m_Name.length() != 0)) {
             conditionFlags.append(qVariantFromValue(ValueCondition(condition->m_Name, condition->m_Value)));
           }
         }
@@ -1089,7 +1089,7 @@ void FomodInstallerDialog::on_cancelBtn_clicked()
 
 void FomodInstallerDialog::on_websiteLabel_linkActivated(const QString &link)
 {
-  ::ShellExecuteW(NULL, L"open", ToWString(link).c_str(), NULL, NULL, SW_SHOWNORMAL);
+  ::ShellExecuteW(nullptr, L"open", ToWString(link).c_str(), nullptr, nullptr, SW_SHOWNORMAL);
 }
 
 
