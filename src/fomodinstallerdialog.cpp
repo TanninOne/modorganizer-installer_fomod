@@ -138,14 +138,14 @@ QByteArray skipXmlHeader(QIODevice &file)
     stream.setCodec("UTF16-BE");
     bom = 2;
   } else if (rawBytes.startsWith((const char*)UTF8_BOM)) {
-    stream.setCodec("UTF8");
+    stream.setCodec("UTF-8");
     bom = 3;
-  } else if (rawBytes.startsWith((const char*)UTF16LE)) {
+  } else if (rawBytes.startsWith(QByteArray((const char *)UTF16LE, 4))) {
     stream.setCodec("UTF16-LE");
-  } else if (rawBytes.startsWith((const char*)UTF16BE)) {
+  } else if (rawBytes.startsWith(QByteArray((const char *)UTF16BE, 4))) {
     stream.setCodec("UTF16-BE");
-  } else if (rawBytes.startsWith((const char*)UTF8)) {
-    stream.setCodec("UTF8");
+  } else if (rawBytes.startsWith(QByteArray((const char*)UTF8, 4))) {
+    stream.setCodec("UTF-8");
   } // otherwise maybe the textstream knows the encoding?
 
   stream.seek(bom);
@@ -154,6 +154,8 @@ QByteArray skipXmlHeader(QIODevice &file)
     // it was all for nothing, there is no header here...
     stream.seek(bom);
   }
+  // this seems to be necessary due to buffering in QTextStream
+  file.seek(stream.pos());
   return file.readAll();
 }
 
