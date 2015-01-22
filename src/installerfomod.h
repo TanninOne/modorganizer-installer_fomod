@@ -4,6 +4,7 @@
 
 #include <iplugininstallersimple.h>
 #include <iplugindiagnose.h>
+#include <ipluginlist.h>
 
 
 class InstallerFomod : public MOBase::IPluginInstallerSimple, public MOBase::IPluginDiagnose
