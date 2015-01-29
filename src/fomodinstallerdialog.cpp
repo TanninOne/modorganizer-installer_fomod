@@ -813,9 +813,8 @@ void FomodInstallerDialog::readPlugins(QXmlStreamReader &reader, GroupType group
         }
         newControl->setProperty("files", fileList);
         QVariantList conditionFlags;
-        for (std::vector<Condition*>::const_iterator iter = plugin.m_Condition.m_Conditions.begin();
-             iter != plugin.m_Condition.m_Conditions.end(); ++iter) {
-          ValueCondition *condition = dynamic_cast<ValueCondition*>(*iter);
+        for (Condition *conditionBase : plugin.m_Condition.m_Conditions) {
+          ValueCondition *condition = dynamic_cast<ValueCondition*>(conditionBase);
           if ((condition != nullptr) && (condition->m_Name.length() != 0)) {
             conditionFlags.append(qVariantFromValue(ValueCondition(condition->m_Name, condition->m_Value)));
           }
