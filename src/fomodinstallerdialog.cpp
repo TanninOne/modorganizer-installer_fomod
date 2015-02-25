@@ -927,7 +927,7 @@ QGroupBox *FomodInstallerDialog::readInstallerStep(QXmlStreamReader &reader)
   QVBoxLayout *scrollLayout = new QVBoxLayout;
 
   QVariantList conditions;
-  ConditionOperator conditionOperator;
+  ConditionOperator conditionOperator = OP_AND;
 
   while (!((reader.readNext() == QXmlStreamReader::EndElement) &&
            (reader.name() == "installStep"))) {
