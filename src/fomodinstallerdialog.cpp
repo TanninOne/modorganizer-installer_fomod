@@ -64,7 +64,8 @@ FomodInstallerDialog::FomodInstallerDialog(const GuessedValue<QString> &modName,
                                            const std::function<MOBase::IPluginList::PluginState(const QString &)> &fileCheck,
                                            QWidget *parent)
   : QDialog(parent), ui(new Ui::FomodInstallerDialog), m_ModName(modName), m_ModID(-1),
-    m_FomodPath(fomodPath), m_Manual(false), m_FileCheck(fileCheck)
+    m_FomodPath(fomodPath), m_Manual(false), m_FileCheck(fileCheck),
+    m_CacheConditions(true)
 {
   ui->setupUi(this);
 
@@ -822,6 +823,9 @@ void FomodInstallerDialog::readPlugins(QXmlStreamReader &reader, GroupType group
         }
         newControl->setProperty("conditionFlags", conditionFlags);
         newControl->installEventFilter(this);
+        //We need somehow to check the 'toggled' signal. how do I do that
+        //void QAbstractButton::clicked ( bool checked ) [signal]
+        connect(newControl, SIGNAL(clicked()), this, SLOT(widgetButtonClicked()));
         controls.push_back(newControl);
         first = false;
       }
@@ -1101,6 +1105,7 @@ void FomodInstallerDialog::activateCurrentPage()
   if (choices.count() > 0) {
     highlightControl(choices.at(0));
   }
+  updateNextbtnText();
 }
 
 bool FomodInstallerDialog::testCondition(int maxIndex, const QString &flag, const QString &value) const
@@ -1129,7 +1134,9 @@ bool FomodInstallerDialog::testCondition(int maxIndex, const QString &flag, cons
             QVariantList conditionFlags = temp.toList();
             for (QVariantList::const_iterator iter = conditionFlags.begin(); iter != conditionFlags.end(); ++iter) {
               ValueCondition condition = iter->value<ValueCondition>();
-              m_ConditionCache[condition.m_Name] = condition.m_Value;
+              if (m_CacheConditions) {
+                m_ConditionCache[condition.m_Name] = condition.m_Value;
+              }
               if ((condition.m_Name == flag) && (condition.m_Value == value)) {
                 return true;
               }
@@ -1139,7 +1146,9 @@ bool FomodInstallerDialog::testCondition(int maxIndex, const QString &flag, cons
       }
     }
   }
-  m_ConditionsUnset.insert(flag);
+  if (m_CacheConditions) {
+    m_ConditionsUnset.insert(flag);
+  }
   return value.isEmpty();
 }
 
@@ -1188,6 +1197,46 @@ bool FomodInstallerDialog::nextPage()
   return false;
 }
 
+void FomodInstallerDialog::widgetButtonClicked()
+{
+  //A button has been clicked. At the moment we do nothing with this
+  //beyond checking the next button state
+  updateNextbtnText();
+}
+
+void FomodInstallerDialog::updateNextbtnText()
+{
+  //Display 'next' or 'install' as appropriate for the next button.
+  //note this can change depending on what buttons you click here.
+  class SaveCacheConditions
+  {
+  public:
+    SaveCacheConditions(FomodInstallerDialog *f) :
+      m_dialog(f)
+    {
+      m_dialog->m_CacheConditions = false;
+    }
+
+    ~SaveCacheConditions()
+    {
+      m_dialog->m_CacheConditions = true;
+    }
+
+  private:
+    FomodInstallerDialog *m_dialog;
+  } guard(this);
+
+  bool isLast = true;
+  for (int index = ui->stepsStack->currentIndex() + 1;
+       index != ui->stepsStack->count(); ++index) {
+    if (testVisible(index)) {
+      isLast = false;
+      break;
+    }
+  }
+
+  ui->nextBtn->setText(tr(isLast ? "Install" : "Next"));
+}
 
 void FomodInstallerDialog::on_nextBtn_clicked()
 {
@@ -1195,9 +1244,7 @@ void FomodInstallerDialog::on_nextBtn_clicked()
     this->accept();
   } else {
     if (nextPage()) {
-      if (ui->stepsStack->currentIndex() == ui->stepsStack->count() - 1) {
-        ui->nextBtn->setText(tr("Install"));
-      }
+      updateNextbtnText();
       ui->prevBtn->setEnabled(true);
       activateCurrentPage();
     } else {

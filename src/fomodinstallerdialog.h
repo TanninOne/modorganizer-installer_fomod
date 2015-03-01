@@ -177,6 +177,9 @@ private slots:
 
   void on_prevBtn_clicked();
 
+  //detect signals for people playing with checkboxes/buttons
+  void widgetButtonClicked();
+
 private:
 
   enum ItemOrder {
@@ -262,6 +265,9 @@ private:
 
   static QString toString(MOBase::IPluginList::PluginState state);
 
+  //Set the 'next' button to display 'next' or 'install'
+  void updateNextbtnText();
+
 private:
 
   Ui::FomodInstallerDialog *ui;
@@ -280,6 +286,11 @@ private:
   mutable std::set<QString> m_ConditionsUnset;
 
   std::function<MOBase::IPluginList::PluginState (const QString&)> m_FileCheck;
+
+  //Set for caching conditions. Coditions are cached when moving between pages,
+  //but not when playing with buttons on the current page, as we could cache
+  //wrong values.
+  bool m_CacheConditions;
 
 };
 
