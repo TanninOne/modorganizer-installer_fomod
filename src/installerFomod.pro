@@ -13,7 +13,7 @@ CONFIG += plugins
 CONFIG += dll
 
 CONFIG(release, debug|release) {
-  QMAKE_CXXFLAGS += /Zi
+  QMAKE_CXXFLAGS += /Zi /wd4503
   QMAKE_LFLAGS += /DEBUG
 }
 
