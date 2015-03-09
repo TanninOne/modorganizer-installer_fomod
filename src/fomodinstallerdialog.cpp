@@ -21,7 +21,7 @@ along with Mod Organizer.  If not, see <http://www.gnu.org/licenses/>.
 #include "report.h"
 #include "utility.h"
 #include "ui_fomodinstallerdialog.h"
-
+#include <scopeguard.h>
 #include <QFile>
 #include <QDir>
 #include <QImage>
@@ -1207,23 +1207,9 @@ void FomodInstallerDialog::updateNextbtnText()
 {
   //Display 'next' or 'install' as appropriate for the next button.
   //note this can change depending on what buttons you click here.
-  class SaveCacheConditions
-  {
-  public:
-    SaveCacheConditions(FomodInstallerDialog *f) :
-      m_dialog(f)
-    {
-      m_dialog->m_CacheConditions = false;
-    }
 
-    ~SaveCacheConditions()
-    {
-      m_dialog->m_CacheConditions = true;
-    }
-
-  private:
-    FomodInstallerDialog *m_dialog;
-  } guard(this);
+  m_CacheConditions = false;
+  ON_BLOCK_EXIT([&] () { m_CacheConditions = true; });
 
   bool isLast = true;
   for (int index = ui->stepsStack->currentIndex() + 1;
@@ -1234,7 +1220,7 @@ void FomodInstallerDialog::updateNextbtnText()
     }
   }
 
-  ui->nextBtn->setText(tr(isLast ? "Install" : "Next"));
+  ui->nextBtn->setText(isLast ? tr("Install") : tr("Next"));
 }
 
 void FomodInstallerDialog::on_nextBtn_clicked()
