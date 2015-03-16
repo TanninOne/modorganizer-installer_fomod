@@ -31,7 +31,8 @@ FORMS += \
     fomodinstallerdialog.ui
 
 OTHER_FILES += \
-    installerfomod.json
+    installerfomod.json\
+    SConscript
 
 include(../plugin_template.pri)
 

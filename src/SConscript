@@ -1,0 +1,53 @@
+import os
+
+Import('qt_env')
+
+env = qt_env.Clone()
+
+modules = [
+    'Core',
+    'Gui'
+]
+
+if env['QT_MAJOR_VERSION'] > 4:
+    modules += [ 'Widgets' ]
+
+env.EnableQt4Modules(['Qt' + n for n in modules],
+                     debug = env['CONFIG'] == 'debug')
+
+env.Uic4(env.Glob('*.ui'))
+
+env.AppendUnique(CPPDEFINES = [ 'INSTALLERFOMOD_LIBRARY' ])
+
+# can't use appendunique...
+env['CPPPATH'] += [
+    '..\\..\\uibase',
+    '.',
+    '${BOOST_PATH}'
+]
+
+env.AppendUnique(LIBPATH = [
+    '..\\..\\uibase'
+])
+
+env.AppendUnique(LIBS = [
+    'uibase',
+    'shell32'
+])
+
+lib = env.SharedLibrary('installerFomod', env.Glob('*.cpp'))
+env.InstallPlugin(lib)
+
+"""
+CONFIG += plugins
+
+CONFIG(release, debug|release) {
+  QMAKE_CXXFLAGS += /Zi
+  QMAKE_LFLAGS += /DEBUG
+}
+
+OTHER_FILES += \
+    installerfomod.json\
+
+include(../plugin_template.pri)
+"""
