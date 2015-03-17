@@ -1,5 +1,3 @@
-import os
-
 Import('qt_env')
 
 env = qt_env.Clone()
@@ -19,19 +17,15 @@ env.Uic4(env.Glob('*.ui'))
 
 env.AppendUnique(CPPDEFINES = [ 'INSTALLERFOMOD_LIBRARY' ])
 
+env.RequireLibraries('uibase')
+
 # can't use appendunique...
 env['CPPPATH'] += [
-    '..\\..\\uibase',
     '.',
-    '${BOOST_PATH}'
+    '${BOOSTPATH}'
 ]
 
-env.AppendUnique(LIBPATH = [
-    '..\\..\\uibase'
-])
-
 env.AppendUnique(LIBS = [
-    'uibase',
     'shell32'
 ])
 
@@ -39,15 +33,8 @@ lib = env.SharedLibrary('installerFomod', env.Glob('*.cpp'))
 env.InstallPlugin(lib)
 
 """
-CONFIG += plugins
-
 CONFIG(release, debug|release) {
   QMAKE_CXXFLAGS += /Zi
   QMAKE_LFLAGS += /DEBUG
 }
-
-OTHER_FILES += \
-    installerfomod.json\
-
-include(../plugin_template.pri)
 """
