@@ -656,7 +656,7 @@ void FomodInstallerDialog::readFileList(QXmlStreamReader &reader, std::vector<Fi
         //so I'm not differentiating.
         //Similarly, I'm not checking for the destination if the source is blank. Why'd you want to
         //copy the fomod directory on an install?
-        if (attributes.value("source").toString() == "") {
+        if (attributes.value("source").isEmpty()) {
           qDebug("Ignoring %s entry with empty source.", reader.name().toUtf8().constData());
           continue;
         }
