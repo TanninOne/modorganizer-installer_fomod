@@ -486,8 +486,6 @@ DirectoryTree *FomodInstallerDialog::updateTree(DirectoryTree *tree)
     }
   }
 
-//  dumpTree(newTree, 0);
-
   std::sort(descriptorList.begin(), descriptorList.end(), [] (FileDescriptor *lhs, FileDescriptor *rhs) -> bool {
         return lhs->m_Priority < rhs->m_Priority;
       });
@@ -649,6 +647,19 @@ void FomodInstallerDialog::readFileList(QXmlStreamReader &reader, std::vector<Fi
       if ((reader.name() == "folder") ||
           (reader.name() == "file")) {
         QXmlStreamAttributes attributes = reader.attributes();
+        //This is a horrendous hack. It doesn't make sense to specify an empty source folder name,
+        //as it would require you to copy everything including the fomod directory. However, people
+        //have been known to write entries like <folder source="" destination=""/> in order to
+        //achieve an option that does nothing. Are groups and buttons that hard?
+        //An empty source file is very probably a serious error but given people do the above, I'm
+        //assuming that they probably assume <file source="" destination=""/> will work the same,
+        //so I'm not differentiating.
+        //Similarly, I'm not checking for the destination if the source is blank. Why'd you want to
+        //copy the fomod directory on an install?
+        if (attributes.value("source").toString() == "") {
+          qDebug("Ignoring %s entry with empty source.", reader.name().toUtf8().constData());
+          continue;
+        }
         FileDescriptor *file = new FileDescriptor(this);
         file->m_Source = attributes.value("source").toString();
         file->m_Destination = attributes.hasAttribute("destination") ? attributes.value("destination").toString()
