@@ -23,3 +23,6 @@ env.AppendUnique(LIBS = [
 
 lib = env.SharedLibrary('installerFomod', env.Glob('*.cpp'))
 env.InstallModule(lib)
+
+res = env['QT_USED_MODULES']
+Return('res')
