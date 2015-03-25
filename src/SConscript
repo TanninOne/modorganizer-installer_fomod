@@ -2,7 +2,7 @@ Import('qt_env')
 
 env = qt_env.Clone()
 
-env.Uic4(env.Glob('*.ui'))
+env.Uic(env.Glob('*.ui'))
 
 env.AppendUnique(CPPDEFINES = [
     'INSTALLERFOMOD_LIBRARY',
