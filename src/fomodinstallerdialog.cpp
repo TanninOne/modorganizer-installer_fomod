@@ -386,7 +386,7 @@ void dumpTree(DirectoryTree::Node *node, int indent)
 
 bool FomodInstallerDialog::copyFileIterator(DirectoryTree *sourceTree, DirectoryTree *destinationTree, const FileDescriptor *descriptor)
 {
-  QString source = (m_FomodPath.length() != 0) ? (m_FomodPath + "\\" + descriptor->m_Source)
+  QString source = (m_FomodPath.length() != 0) ? (m_FomodPath + "/" + descriptor->m_Source)
                                                : descriptor->m_Source;
   QString destination = descriptor->m_Destination;
   try {
