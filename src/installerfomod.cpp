@@ -148,7 +148,7 @@ QStringList InstallerFomod::buildFomodTree(DirectoryTree &tree)
 }
 
 
-IPluginList::PluginState InstallerFomod::fileState(const QString &fileName)
+IPluginList::PluginStates InstallerFomod::fileState(const QString &fileName)
 {
   return m_MOInfo->pluginList()->state(fileName);
 }
