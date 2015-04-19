@@ -68,7 +68,6 @@ FomodInstallerDialog::FomodInstallerDialog(const GuessedValue<QString> &modName,
     m_CacheConditions(true)
 {
   ui->setupUi(this);
-
   setWindowTitle(modName);
 
   updateNameEdit();
@@ -294,10 +293,7 @@ DirectoryTree::Node *FomodInstallerDialog::findNode(DirectoryTree::Node *node, c
     return node;
   }
 
-  int pos = path.indexOf('\\');
-  if (pos == -1) {
-    pos = path.indexOf('/');
-  }
+  int pos = path.indexOf(QRegExp("[\\\\/]"));
   QString subPath = path;
   if (pos > 0) {
     subPath = path.mid(0, pos);
