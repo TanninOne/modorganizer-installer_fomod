@@ -61,14 +61,13 @@ bool PagesDescending(QGroupBox *LHS, QGroupBox *RHS)
 
 
 FomodInstallerDialog::FomodInstallerDialog(const GuessedValue<QString> &modName, const QString &fomodPath,
-                                           const std::function<MOBase::IPluginList::PluginState(const QString &)> &fileCheck,
+                                           const std::function<MOBase::IPluginList::PluginStates(const QString &)> &fileCheck,
                                            QWidget *parent)
   : QDialog(parent), ui(new Ui::FomodInstallerDialog), m_ModName(modName), m_ModID(-1),
     m_FomodPath(fomodPath), m_Manual(false), m_FileCheck(fileCheck),
     m_CacheConditions(true)
 {
   ui->setupUi(this);
-
   setWindowTitle(modName);
 
   updateNameEdit();
@@ -294,10 +293,7 @@ DirectoryTree::Node *FomodInstallerDialog::findNode(DirectoryTree::Node *node, c
     return node;
   }
 
-  int pos = path.indexOf('\\');
-  if (pos == -1) {
-    pos = path.indexOf('/');
-  }
+  int pos = path.indexOf(QRegExp("[\\\\/]"));
   QString subPath = path;
   if (pos > 0) {
     subPath = path.mid(0, pos);
@@ -386,7 +382,7 @@ void dumpTree(DirectoryTree::Node *node, int indent)
 
 bool FomodInstallerDialog::copyFileIterator(DirectoryTree *sourceTree, DirectoryTree *destinationTree, const FileDescriptor *descriptor)
 {
-  QString source = (m_FomodPath.length() != 0) ? (m_FomodPath + "\\" + descriptor->m_Source)
+  QString source = (m_FomodPath.length() != 0) ? (m_FomodPath + "/" + descriptor->m_Source)
                                                : descriptor->m_Source;
   QString destination = descriptor->m_Destination;
   try {
@@ -429,24 +425,18 @@ bool FomodInstallerDialog::testCondition(int maxIndex, const SubCondition *condi
   return match;
 }
 
-
-QString FomodInstallerDialog::toString(IPluginList::PluginState state)
+QString FomodInstallerDialog::toString(IPluginList::PluginStates state)
 {
-  switch (state) {
-    case IPluginList::STATE_MISSING: return "Missing";
-    case IPluginList::STATE_INACTIVE: return "Inactive";
-    case IPluginList::STATE_ACTIVE: return "Active";
-  }
-  throw MyException(tr("invalid plugin state %1").arg(state));
+  if (state.testFlag(IPluginList::STATE_MISSING)) return "Missing";
+  if (state.testFlag(IPluginList::STATE_INACTIVE)) return "Inactive";
+  if (state.testFlag(IPluginList::STATE_ACTIVE)) return "Active";
+  throw MyException(tr("invalid plugin state"));
 }
-
 
 bool FomodInstallerDialog::testCondition(int, const FileCondition *condition) const
 {
   return toString(m_FileCheck(condition->m_File)) == condition->m_State;
 }
-
-
 
 //#error "incomplete support for nested conditions. heap-allocated conditions aren't cleaned up yet"
 

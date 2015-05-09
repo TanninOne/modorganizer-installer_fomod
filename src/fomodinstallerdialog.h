@@ -123,7 +123,7 @@ class FomodInstallerDialog : public QDialog, public IConditionTester
 public:
   explicit FomodInstallerDialog(const MOBase::GuessedValue<QString> &modName,
                                 const QString &fomodPath,
-                                const std::function<MOBase::IPluginList::PluginState (const QString &)> &fileCheck,
+                                const std::function<MOBase::IPluginList::PluginStates (const QString &)> &fileCheck,
                                 QWidget *parent = 0);
   ~FomodInstallerDialog();
 
@@ -263,7 +263,7 @@ private:
   void copyLeaf(MOBase::DirectoryTree::Node *sourceTree, const QString &sourcePath,
                 MOBase::DirectoryTree::Node *destinationTree, const QString &destinationPath);
 
-  static QString toString(MOBase::IPluginList::PluginState state);
+  static QString toString(MOBase::IPluginList::PluginStates state);
 
   //Set the 'next' button to display 'next' or 'install'
   void updateNextbtnText();
@@ -285,7 +285,7 @@ private:
   mutable std::map<QString, QString> m_ConditionCache;
   mutable std::set<QString> m_ConditionsUnset;
 
-  std::function<MOBase::IPluginList::PluginState (const QString&)> m_FileCheck;
+  std::function<MOBase::IPluginList::PluginStates (const QString&)> m_FileCheck;
 
   //Set for caching conditions. Coditions are cached when moving between pages,
   //but not when playing with buttons on the current page, as we could cache
