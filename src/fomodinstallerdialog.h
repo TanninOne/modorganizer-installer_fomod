@@ -204,18 +204,20 @@ private:
     TYPE_COULDBEUSABLE
   };
 
+  typedef std::vector<FileDescriptor*> FileDescriptorList;
+
   struct Plugin {
     QString m_Name;
     QString m_Description;
     QString m_ImagePath;
     PluginType m_Type;
     SubCondition m_Condition;
-    std::vector<FileDescriptor*> m_Files;
+    FileDescriptorList m_Files;
   };
 
   struct ConditionalInstall {
     SubCondition m_Condition;
-    std::vector<FileDescriptor*> m_Files;
+    FileDescriptorList m_Files;
   };
 
 private:
@@ -235,7 +237,7 @@ private:
   static bool byPriority(const FileDescriptor *LHS, const FileDescriptor *RHS);
 
   bool copyFileIterator(MOBase::DirectoryTree *sourceTree, MOBase::DirectoryTree *destinationTree, const FileDescriptor *descriptor);
-  void readFileList(QXmlStreamReader &reader, std::vector<FileDescriptor*> &fileList);
+  void readFileList(QXmlStreamReader &reader, FileDescriptorList &fileList);
   void readPluginType(QXmlStreamReader &reader, Plugin &plugin);
   void readConditionFlags(QXmlStreamReader &reader, Plugin &plugin);
   FomodInstallerDialog::Plugin readPlugin(QXmlStreamReader &reader);
@@ -258,10 +260,10 @@ private:
   bool testVisible(int pageIndex) const;
   bool nextPage();
   void activateCurrentPage();
-  void moveTree(MOBase::DirectoryTree::Node *target, MOBase::DirectoryTree::Node *source);
+  void moveTree(MOBase::DirectoryTree::Node *target, MOBase::DirectoryTree::Node *source, int pri);
   MOBase::DirectoryTree::Node *findNode(MOBase::DirectoryTree::Node *node, const QString &path, bool create);
   void copyLeaf(MOBase::DirectoryTree::Node *sourceTree, const QString &sourcePath,
-                MOBase::DirectoryTree::Node *destinationTree, const QString &destinationPath);
+                MOBase::DirectoryTree::Node *destinationTree, const QString &destinationPath, int pri);
 
   static QString toString(MOBase::IPluginList::PluginState state);
 
@@ -279,7 +281,7 @@ private:
   QString m_FomodPath;
   bool m_Manual;
 
-  std::vector<FileDescriptor*> m_RequiredFiles;
+  FileDescriptorList m_RequiredFiles;
   std::vector<ConditionalInstall> m_ConditionalInstalls;
 
   mutable std::map<QString, QString> m_ConditionCache;

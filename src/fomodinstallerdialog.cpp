@@ -24,6 +24,7 @@ along with Mod Organizer.  If not, see <http://www.gnu.org/licenses/>.
 #include <scopeguard.h>
 #include <QFile>
 #include <QDir>
+#include <QDebug>
 #include <QImage>
 #include <QCheckBox>
 #include <QRadioButton>
@@ -31,6 +32,7 @@ along with Mod Organizer.  If not, see <http://www.gnu.org/licenses/>.
 #include <QTextCodec>
 #include <Shellapi.h>
 #include <boost/assign.hpp>
+#include <sstream>
 
 
 using namespace MOBase;
@@ -274,16 +276,38 @@ int FomodInstallerDialog::getModID() const
   return m_ModID;
 }
 
-void FomodInstallerDialog::moveTree(DirectoryTree::Node *target, DirectoryTree::Node *source)
+namespace {
+
+QString getNodePath(DirectoryTree::Node const *node)
 {
+  {
+    QString s;
+    if (node->getParent() != nullptr) {
+      s = getNodePath(node->getParent()) + "/";
+    }
+    return s + node->getData().name;
+  }
+}
+
+}
+
+void FomodInstallerDialog::moveTree(DirectoryTree::Node *target, DirectoryTree::Node *source, int pri)
+{
+  DirectoryTree::Overwrites nodes;
   for (DirectoryTree::const_node_iterator iter = source->nodesBegin(); iter != source->nodesEnd();) {
-    target->addNode(*iter, true);
+    target->addNode(*iter, true, &nodes);
     iter = source->detach(iter);
   }
 
   for (DirectoryTree::const_leaf_reverse_iterator iter = source->leafsRBegin();
        iter != source->leafsREnd(); ++iter) {
-    target->addLeaf(*iter);
+    target->addLeaf(*iter, true, &nodes);
+  }
+  qDebug("%d", nodes.size());
+  for (auto node : nodes) {
+    QString s = getNodePath(node.first);
+    s += "/" + node.second.getName();
+    qDebug() << s;
   }
 }
 
@@ -326,7 +350,8 @@ DirectoryTree::Node *FomodInstallerDialog::findNode(DirectoryTree::Node *node, c
 }
 
 void FomodInstallerDialog::copyLeaf(DirectoryTree::Node *sourceTree, const QString &sourcePath,
-                                    DirectoryTree::Node *destinationTree, const QString &destinationPath)
+                                    DirectoryTree::Node *destinationTree, const QString &destinationPath,
+                                    int pri)
 {
   int sourceFileIndex = sourcePath.lastIndexOf('\\');
   if (sourceFileIndex == -1) {
@@ -388,14 +413,15 @@ bool FomodInstallerDialog::copyFileIterator(DirectoryTree *sourceTree, Directory
 {
   QString source = (m_FomodPath.length() != 0) ? (m_FomodPath + "\\" + descriptor->m_Source)
                                                : descriptor->m_Source;
+  int pri = descriptor->m_Priority;
   QString destination = descriptor->m_Destination;
   try {
     if (descriptor->m_IsFolder) {
       DirectoryTree::Node *sourceNode = findNode(sourceTree, source, false);
       DirectoryTree::Node *targetNode = findNode(destinationTree, destination, true);
-      moveTree(targetNode, sourceNode);
+      moveTree(targetNode, sourceNode, pri);
     } else {
-      copyLeaf(sourceTree, source, destinationTree, destination);
+      copyLeaf(sourceTree, source, destinationTree, destination, pri);
     }
     return true;
   } catch (const MyException &e) {
@@ -452,10 +478,10 @@ bool FomodInstallerDialog::testCondition(int, const FileCondition *condition) co
 
 DirectoryTree *FomodInstallerDialog::updateTree(DirectoryTree *tree)
 {
-  std::vector<FileDescriptor*> descriptorList;
+  FileDescriptorList descriptorList;
 
   // enable all required files
-  for (std::vector<FileDescriptor*>::iterator iter = m_RequiredFiles.begin(); iter != m_RequiredFiles.end(); ++iter) {
+  for (FileDescriptorList::iterator iter = m_RequiredFiles.begin(); iter != m_RequiredFiles.end(); ++iter) {
     descriptorList.push_back(*iter);
   }
 
@@ -464,7 +490,7 @@ DirectoryTree *FomodInstallerDialog::updateTree(DirectoryTree *tree)
        installIter != m_ConditionalInstalls.end(); ++installIter) {
     SubCondition *condition = &installIter->m_Condition;
     if (condition->test(ui->stepsStack->count(), this)) {
-      for (std::vector<FileDescriptor*>::iterator fileIter = installIter->m_Files.begin();
+      for (FileDescriptorList::iterator fileIter = installIter->m_Files.begin();
            fileIter != installIter->m_Files.end(); ++fileIter) {
         descriptorList.push_back(*fileIter);
       }
@@ -637,7 +663,7 @@ FomodInstallerDialog::PluginType FomodInstallerDialog::getPluginType(const QStri
 }
 
 
-void FomodInstallerDialog::readFileList(QXmlStreamReader &reader, std::vector<FileDescriptor*> &fileList)
+void FomodInstallerDialog::readFileList(QXmlStreamReader &reader, FileDescriptorList &fileList)
 {
   QStringRef openTag = reader.name();
   while (!((reader.readNext() == QXmlStreamReader::EndElement) &&
@@ -820,7 +846,7 @@ void FomodInstallerDialog::readPlugins(QXmlStreamReader &reader, GroupType group
         newControl->setProperty("screenshot", plugin.m_ImagePath);
         newControl->setProperty("description", plugin.m_Description);
         QVariantList fileList;
-        for (std::vector<FileDescriptor*>::iterator iter = plugin.m_Files.begin(); iter != plugin.m_Files.end(); ++iter) {
+        for (FileDescriptorList::iterator iter = plugin.m_Files.begin(); iter != plugin.m_Files.end(); ++iter) {
           fileList.append(qVariantFromValue(*iter));
         }
         newControl->setProperty("files", fileList);
