@@ -67,7 +67,8 @@ FomodInstallerDialog::FomodInstallerDialog(const GuessedValue<QString> &modName,
                                            QWidget *parent)
   : QDialog(parent), ui(new Ui::FomodInstallerDialog), m_ModName(modName), m_ModID(-1),
     m_FomodPath(fomodPath), m_Manual(false), m_FileCheck(fileCheck),
-    m_CacheConditions(true)
+    m_CacheConditions(true),
+    m_FileSystemItemSequence()
 {
   ui->setupUi(this);
   setWindowTitle(modName);
@@ -514,9 +515,7 @@ DirectoryTree *FomodInstallerDialog::updateTree(DirectoryTree *tree)
     }
   }
 
-  std::sort(descriptorList.begin(), descriptorList.end(), [] (FileDescriptor *lhs, FileDescriptor *rhs) -> bool {
-        return lhs->m_Priority < rhs->m_Priority;
-      });
+  std::sort(descriptorList.begin(), descriptorList.end(), byPriority);
 
   DirectoryTree *newTree = new DirectoryTree;
   Leaves leaves;
@@ -701,7 +700,8 @@ void FomodInstallerDialog::readFileList(QXmlStreamReader &reader, FileDescriptor
         file->m_Destination = attributes.hasAttribute("destination") ? attributes.value("destination").toString()
                                                                      : file->m_Source;
         file->m_Priority = attributes.hasAttribute("priority") ? attributes.value("priority").toString().toInt()
-                                                               : 0;
+                                                               : 0;        
+        file->m_FileSystemItemSequence = ++m_FileSystemItemSequence;
         file->m_IsFolder = reader.name() == "folder";
         file->m_InstallIfUsable = attributes.hasAttribute("installIfUsable") ? (attributes.value("installIfUsable").compare("true") == 0)
                                                                              : false;
@@ -749,7 +749,9 @@ void FomodInstallerDialog::readConditionFlags(QXmlStreamReader &reader, Plugin &
 
 bool FomodInstallerDialog::byPriority(const FileDescriptor *LHS, const FileDescriptor *RHS)
 {
-  return LHS->m_Priority < RHS->m_Priority;
+  return LHS->m_Priority == RHS->m_Priority ?
+                LHS->m_FileSystemItemSequence < RHS->m_FileSystemItemSequence :
+                LHS->m_Priority < RHS->m_Priority;
 }
 
 
@@ -776,6 +778,9 @@ FomodInstallerDialog::Plugin FomodInstallerDialog::readPlugin(QXmlStreamReader &
     }
   }
 
+  //I (TRT) am not quite sure why this sort is done here. It is done again
+  //when the files have been selected before installing them, which seems
+  //a more appropriate place.
   std::sort(result.m_Files.begin(), result.m_Files.end(), byPriority);
 
   return result;

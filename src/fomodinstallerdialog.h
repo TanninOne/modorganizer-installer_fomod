@@ -98,17 +98,24 @@ class FileDescriptor : public QObject {
 public:
   FileDescriptor(QObject *parent)
     : QObject(parent), m_Source(), m_Destination(), m_Priority(0), m_IsFolder(false), m_AlwaysInstall(false),
-      m_InstallIfUsable(false) {}
+      m_InstallIfUsable(false),
+      m_FileSystemItemSequence(0)
+  {}
+
   FileDescriptor(const FileDescriptor &reference)
     : QObject(reference.parent()), m_Source(reference.m_Source), m_Destination(reference.m_Destination),
       m_Priority(reference.m_Priority), m_IsFolder(reference.m_IsFolder), m_AlwaysInstall(reference.m_AlwaysInstall),
-      m_InstallIfUsable(reference.m_InstallIfUsable) {}
+      m_InstallIfUsable(reference.m_InstallIfUsable),
+      m_FileSystemItemSequence(reference.m_FileSystemItemSequence)
+  {}
+
   QString m_Source;
   QString m_Destination;
   int m_Priority;
   bool m_IsFolder;
   bool m_AlwaysInstall;
   bool m_InstallIfUsable;
+  int m_FileSystemItemSequence;
 private:
   FileDescriptor &operator=(const FileDescriptor&);
 };
@@ -305,6 +312,10 @@ private:
   //but not when playing with buttons on the current page, as we could cache
   //wrong values.
   bool m_CacheConditions;
+
+  //Because NMM maintains the sequence from the xml when dealing with things with
+  //the same priority, we have to as well. This is moderately hacky.
+  int m_FileSystemItemSequence;
 
 };
 
