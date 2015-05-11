@@ -282,7 +282,10 @@ QString getNodePath(DirectoryTree::Node const *node)
   {
     QString s;
     if (node->getParent() != nullptr) {
-      s = getNodePath(node->getParent()) + "/";
+      s = getNodePath(node->getParent());
+      if (s != "") {
+        s += "/";
+      }
     }
     return s + node->getData().name;
   }
@@ -290,23 +293,16 @@ QString getNodePath(DirectoryTree::Node const *node)
 
 }
 
-void FomodInstallerDialog::moveTree(DirectoryTree::Node *target, DirectoryTree::Node *source, int pri)
+void FomodInstallerDialog::moveTree(DirectoryTree::Node *target, DirectoryTree::Node *source, DirectoryTree::Overwrites *overwrites)
 {
-  DirectoryTree::Overwrites nodes;
   for (DirectoryTree::const_node_iterator iter = source->nodesBegin(); iter != source->nodesEnd();) {
-    target->addNode(*iter, true, &nodes);
+    target->addNode(*iter, true, overwrites);
     iter = source->detach(iter);
   }
 
   for (DirectoryTree::const_leaf_reverse_iterator iter = source->leafsRBegin();
        iter != source->leafsREnd(); ++iter) {
-    target->addLeaf(*iter, true, &nodes);
-  }
-  qDebug("%d", nodes.size());
-  for (auto node : nodes) {
-    QString s = getNodePath(node.first);
-    s += "/" + node.second.getName();
-    qDebug() << s;
+    target->addLeaf(*iter, true, overwrites);
   }
 }
 
@@ -347,7 +343,8 @@ DirectoryTree::Node *FomodInstallerDialog::findNode(DirectoryTree::Node *node, c
 
 void FomodInstallerDialog::copyLeaf(DirectoryTree::Node *sourceTree, const QString &sourcePath,
                                     DirectoryTree::Node *destinationTree, const QString &destinationPath,
-                                    int pri)
+                                    DirectoryTree::Overwrites *overwrites,
+                                    Leaves *leaves, int pri)
 {
   int sourceFileIndex = sourcePath.lastIndexOf('\\');
   if (sourceFileIndex == -1) {
@@ -357,6 +354,7 @@ void FomodInstallerDialog::copyLeaf(DirectoryTree::Node *sourceTree, const QStri
     }
   }
   DirectoryTree::Node *sourceNode = sourceFileIndex == 0 ? sourceTree : findNode(sourceTree, sourcePath.mid(0, sourceFileIndex), false);
+  applyPriority(leaves, sourceNode, pri);
 
   int destinationFileIndex = destinationPath.lastIndexOf('\\');
   if (destinationFileIndex == -1) {
@@ -382,7 +380,7 @@ void FomodInstallerDialog::copyLeaf(DirectoryTree::Node *sourceTree, const QStri
     if (iter->getName().compare(sourceName, Qt::CaseInsensitive) == 0) {
       FileTreeInformation temp = *iter;
       temp.setName(destinationName);
-      destinationNode->addLeaf(temp);
+      destinationNode->addLeaf(temp, true, overwrites);
       found = true;
     }
   }
@@ -404,27 +402,20 @@ void dumpTree(DirectoryTree::Node *node, int indent)
   }
 }
 
-namespace {
-
-void applyPriority(DirectoryTree::Node *node, int priority)
+void FomodInstallerDialog::applyPriority(Leaves *leaves, DirectoryTree::Node *node, int priority)
 {
   for (DirectoryTree::leaf_iterator iter = node->leafsBegin(); iter != node->leafsEnd(); ++iter) {
-    //Updating an element of a set is painful. Though this isn't really a set. It's a map and it'd
-    //be a lot less painful to update that.
-    FileTreeInformation copy = *iter;
-    copy.setPriority(priority);
-    node->erase(iter);
-    node->addLeaf(copy);
-    iter = node->find(copy);
+    LeafInfo info = { priority, getNodePath(node) + "/" + iter->getName() };
+    leaves->insert(std::make_pair(iter->getIndex(), info));
   }
   for (DirectoryTree::node_iterator iter = node->nodesBegin(); iter != node->nodesEnd(); ++iter) {
-    applyPriority(*iter, priority);
+    applyPriority(leaves, *iter, priority);
   }
 }
 
-}
-
-bool FomodInstallerDialog::copyFileIterator(DirectoryTree *sourceTree, DirectoryTree *destinationTree, const FileDescriptor *descriptor)
+bool FomodInstallerDialog::copyFileIterator(DirectoryTree *sourceTree, DirectoryTree *destinationTree,
+                                            const FileDescriptor *descriptor,
+                                            Leaves *leaves, DirectoryTree::Overwrites *overwrites)
 {
   QString source = (m_FomodPath.length() != 0) ? (m_FomodPath + "/" + descriptor->m_Source)
                                                : descriptor->m_Source;
@@ -434,11 +425,11 @@ bool FomodInstallerDialog::copyFileIterator(DirectoryTree *sourceTree, Directory
     if (descriptor->m_IsFolder) {
       DirectoryTree::Node *sourceNode = findNode(sourceTree, source, false);
       //Now apply the priority to the sourceNode tree
-      applyPriority(sourceNode, pri);
+      applyPriority(leaves, sourceNode, pri);
       DirectoryTree::Node *targetNode = findNode(destinationTree, destination, true);
-      moveTree(targetNode, sourceNode, pri);
+      moveTree(targetNode, sourceNode, overwrites);
     } else {
-      copyLeaf(sourceTree, source, destinationTree, destination, pri);
+      copyLeaf(sourceTree, source, destinationTree, destination, overwrites, leaves, pri);
     }
     return true;
   } catch (const MyException &e) {
@@ -528,11 +519,19 @@ DirectoryTree *FomodInstallerDialog::updateTree(DirectoryTree *tree)
       });
 
   DirectoryTree *newTree = new DirectoryTree;
+  Leaves leaves;
+  DirectoryTree::Overwrites overwrites;
 
   foreach (const FileDescriptor *file, descriptorList) {
-    copyFileIterator(tree, newTree, file);
+    copyFileIterator(tree, newTree, file, &leaves, &overwrites);
   }
 
+  for (auto overwrite : overwrites) {
+    if (leaves[overwrite.first].priority == leaves[overwrite.second].priority) {
+      qWarning() << "Overriding " << leaves[overwrite.first].path << " with " <<
+                    leaves[overwrite.second].path << " which has the same priority";
+    }
+  }
   return newTree;
 }
 

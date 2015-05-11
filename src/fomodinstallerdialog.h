@@ -220,6 +220,13 @@ private:
     FileDescriptorList m_Files;
   };
 
+  struct LeafInfo {
+    int priority;
+    QString path;
+  };
+
+  typedef std::map<int, LeafInfo> Leaves;
+
 private:
 
   QString readContent(QXmlStreamReader &reader);
@@ -236,7 +243,9 @@ private:
   static PluginType getPluginType(const QString &typeString);
   static bool byPriority(const FileDescriptor *LHS, const FileDescriptor *RHS);
 
-  bool copyFileIterator(MOBase::DirectoryTree *sourceTree, MOBase::DirectoryTree *destinationTree, const FileDescriptor *descriptor);
+  bool copyFileIterator(MOBase::DirectoryTree *sourceTree, MOBase::DirectoryTree *destinationTree,
+                        const FileDescriptor *descriptor,
+                        Leaves *leaves, MOBase::DirectoryTree::Overwrites *overwrites);
   void readFileList(QXmlStreamReader &reader, FileDescriptorList &fileList);
   void readPluginType(QXmlStreamReader &reader, Plugin &plugin);
   void readConditionFlags(QXmlStreamReader &reader, Plugin &plugin);
@@ -260,10 +269,13 @@ private:
   bool testVisible(int pageIndex) const;
   bool nextPage();
   void activateCurrentPage();
-  void moveTree(MOBase::DirectoryTree::Node *target, MOBase::DirectoryTree::Node *source, int pri);
+  void moveTree(MOBase::DirectoryTree::Node *target, MOBase::DirectoryTree::Node *source, MOBase::DirectoryTree::Overwrites *overwrites);
   MOBase::DirectoryTree::Node *findNode(MOBase::DirectoryTree::Node *node, const QString &path, bool create);
   void copyLeaf(MOBase::DirectoryTree::Node *sourceTree, const QString &sourcePath,
-                MOBase::DirectoryTree::Node *destinationTree, const QString &destinationPath, int pri);
+                MOBase::DirectoryTree::Node *destinationTree, const QString &destinationPath,
+                MOBase::DirectoryTree::Overwrites *overwrites, Leaves *leaves, int pri);
+
+  static void FomodInstallerDialog::applyPriority(Leaves *leaves, MOBase::DirectoryTree::Node *node, int priority);
 
   static QString toString(MOBase::IPluginList::PluginStates state);
 
