@@ -404,6 +404,25 @@ void dumpTree(DirectoryTree::Node *node, int indent)
   }
 }
 
+namespace {
+
+void applyPriority(DirectoryTree::Node *node, int priority)
+{
+  for (DirectoryTree::leaf_iterator iter = node->leafsBegin(); iter != node->leafsEnd(); ++iter) {
+    //Updating an element of a set is painful. Though this isn't really a set. It's a map and it'd
+    //be a lot less painful to update that.
+    FileTreeInformation copy = *iter;
+    copy.setPriority(priority);
+    node->erase(iter);
+    node->addLeaf(copy);
+    iter = node->find(copy);
+  }
+  for (DirectoryTree::node_iterator iter = node->nodesBegin(); iter != node->nodesEnd(); ++iter) {
+    applyPriority(*iter, priority);
+  }
+}
+
+}
 
 bool FomodInstallerDialog::copyFileIterator(DirectoryTree *sourceTree, DirectoryTree *destinationTree, const FileDescriptor *descriptor)
 {
@@ -414,6 +433,8 @@ bool FomodInstallerDialog::copyFileIterator(DirectoryTree *sourceTree, Directory
   try {
     if (descriptor->m_IsFolder) {
       DirectoryTree::Node *sourceNode = findNode(sourceTree, source, false);
+      //Now apply the priority to the sourceNode tree
+      applyPriority(sourceNode, pri);
       DirectoryTree::Node *targetNode = findNode(destinationTree, destination, true);
       moveTree(targetNode, sourceNode, pri);
     } else {
