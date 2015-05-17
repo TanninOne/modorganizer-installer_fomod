@@ -21,11 +21,13 @@ DEFINES += INSTALLERFOMOD_LIBRARY
 
 SOURCES += installerfomod.cpp \
     fomodinstallerdialog.cpp \
-    scalelabel.cpp
+    scalelabel.cpp \
+    xmlreader.cpp
 
 HEADERS += installerfomod.h \
     fomodinstallerdialog.h \
-    scalelabel.h
+    scalelabel.h \
+    xmlreader.h
 
 FORMS += \
     fomodinstallerdialog.ui

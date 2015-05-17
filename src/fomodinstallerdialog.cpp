@@ -18,9 +18,12 @@ along with Mod Organizer.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "fomodinstallerdialog.h"
+
 #include "report.h"
 #include "utility.h"
 #include "ui_fomodinstallerdialog.h"
+#include "xmlreader.h"
+
 #include <scopeguard.h>
 #include <QFile>
 #include <QDir>
@@ -36,7 +39,6 @@ along with Mod Organizer.  If not, see <http://www.gnu.org/licenses/>.
 
 
 using namespace MOBase;
-
 
 bool ControlsAscending(QAbstractButton *LHS, QAbstractButton *RHS)
 {
@@ -169,7 +171,7 @@ void FomodInstallerDialog::readInfoXml()
     bool success = false;
     std::string errorMessage;
     try {
-      QXmlStreamReader reader(&file);
+      XmlReader reader(&file);
       parseInfo(reader);
       success = true;
     } catch (const XmlParseError &e) {
@@ -187,7 +189,7 @@ void FomodInstallerDialog::readInfoXml()
         qDebug("trying encoding %s", encoding);
         try {
           QTextCodec *codec = QTextCodec::codecForName(encoding);
-          QXmlStreamReader reader(codec->fromUnicode(QString("<?xml version=\"1.0\" encoding=\"%1\" ?>").arg(encoding)) + headerlessData);
+          XmlReader reader(codec->fromUnicode(QString("<?xml version=\"1.0\" encoding=\"%1\" ?>").arg(encoding)) + headerlessData);
           parseInfo(reader);
           qDebug("interpreting as %s", encoding);
           success = true;
@@ -214,7 +216,7 @@ void FomodInstallerDialog::readModuleConfigXml()
   bool success = false;
   std::string errorMessage;
   try {
-    QXmlStreamReader reader(&file);
+    XmlReader reader(&file);
     parseModuleConfig(reader);
     success = true;
   } catch (const XmlParseError &e) {
@@ -231,7 +233,7 @@ void FomodInstallerDialog::readModuleConfigXml()
     foreach (const char *encoding, boost::assign::list_of("utf-16")("utf-8")("iso-8859-1")) {
       try {
         QTextCodec *codec = QTextCodec::codecForName(encoding);
-        QXmlStreamReader reader(codec->fromUnicode(QString("<?xml version=\"1.0\" encoding=\"%1\" ?>").arg(encoding)) + headerlessData);
+        XmlReader reader(codec->fromUnicode(QString("<?xml version=\"1.0\" encoding=\"%1\" ?>").arg(encoding)) + headerlessData);
         parseModuleConfig(reader);
         qDebug("interpreting as %s", encoding);
         success = true;
@@ -568,9 +570,9 @@ bool FomodInstallerDialog::eventFilter(QObject *object, QEvent *event)
 }
 
 
-QString FomodInstallerDialog::readContent(QXmlStreamReader &reader)
+QString FomodInstallerDialog::readContent(XmlReader &reader)
 {
-  if (reader.readNext() == QXmlStreamReader::Characters) {
+  if (reader.readNext() == XmlReader::Characters) {
     return reader.text().toString();
   } else {
     return QString();
@@ -578,13 +580,13 @@ QString FomodInstallerDialog::readContent(QXmlStreamReader &reader)
 }
 
 
-QString FomodInstallerDialog::readContentUntil(QXmlStreamReader &reader, const QString &endTag)
+QString FomodInstallerDialog::readContentUntil(XmlReader &reader, const QString &endTag)
 {
   QString result;
-  while (!((reader.readNext() == QXmlStreamReader::EndElement) &&
+  while (!((reader.readNext() == XmlReader::EndElement) &&
            (reader.name().compare(endTag) == 0))) {
-    if (reader.tokenType() == QXmlStreamReader::Invalid) throw MyException(tr("Invalid xml token"));
-    if (reader.tokenType() == QXmlStreamReader::Characters) {
+    if (reader.tokenType() == XmlReader::Invalid) throw MyException(tr("Invalid xml token"));
+    if (reader.tokenType() == XmlReader::Characters) {
       result += reader.text().toString();
     }
   }
@@ -592,11 +594,11 @@ QString FomodInstallerDialog::readContentUntil(QXmlStreamReader &reader, const Q
 }
 
 
-void FomodInstallerDialog::parseInfo(QXmlStreamReader &reader)
+void FomodInstallerDialog::parseInfo(XmlReader &reader)
 {
   while (!reader.atEnd() && !reader.hasError()) {
     switch (reader.readNext()) {
-      case QXmlStreamReader::StartElement: {
+      case XmlReader::StartElement: {
         if (reader.name() == "Name") {
           m_ModName.update(readContent(reader), GUESS_META);
           updateNameEdit();
@@ -672,13 +674,13 @@ FomodInstallerDialog::PluginType FomodInstallerDialog::getPluginType(const QStri
 }
 
 
-void FomodInstallerDialog::readFileList(QXmlStreamReader &reader, FileDescriptorList &fileList)
+void FomodInstallerDialog::readFileList(XmlReader &reader, FileDescriptorList &fileList)
 {
   QStringRef openTag = reader.name();
-  while (!((reader.readNext() == QXmlStreamReader::EndElement) &&
+  while (!((reader.readNext() == XmlReader::EndElement) &&
            (reader.name() == openTag))) {
-    if (reader.tokenType() == QXmlStreamReader::Invalid) throw MyException(tr("Invalid xml token"));
-    if (reader.tokenType() == QXmlStreamReader::StartElement) {
+    if (reader.tokenType() == XmlReader::Invalid) throw MyException(tr("Invalid xml token"));
+    if (reader.tokenType() == XmlReader::StartElement) {
       if ((reader.name() == "folder") ||
           (reader.name() == "file")) {
         QXmlStreamAttributes attributes = reader.attributes();
@@ -700,7 +702,7 @@ void FomodInstallerDialog::readFileList(QXmlStreamReader &reader, FileDescriptor
         file->m_Destination = attributes.hasAttribute("destination") ? attributes.value("destination").toString()
                                                                      : file->m_Source;
         file->m_Priority = attributes.hasAttribute("priority") ? attributes.value("priority").toString().toInt()
-                                                               : 0;        
+                                                               : 0;
         file->m_FileSystemItemSequence = ++m_FileSystemItemSequence;
         file->m_IsFolder = reader.name() == "folder";
         file->m_InstallIfUsable = attributes.hasAttribute("installIfUsable") ? (attributes.value("installIfUsable").compare("true") == 0)
@@ -715,27 +717,29 @@ void FomodInstallerDialog::readFileList(QXmlStreamReader &reader, FileDescriptor
 }
 
 
-void FomodInstallerDialog::readPluginType(QXmlStreamReader &reader, Plugin &plugin)
+void FomodInstallerDialog::readPluginType(XmlReader &reader, Plugin &plugin)
 {
   plugin.m_Type = TYPE_OPTIONAL;
-  while (!((reader.readNext() == QXmlStreamReader::EndElement) &&
+  while (!((reader.readNext() == XmlReader::EndElement) &&
            (reader.name() == "typeDescriptor"))) {
-    if (reader.tokenType() == QXmlStreamReader::Invalid) throw MyException(tr("Invalid xml token"));
-    if (reader.tokenType() == QXmlStreamReader::StartElement) {
+    if (reader.tokenType() == XmlReader::Invalid) throw MyException(tr("Invalid xml token"));
+    if (reader.tokenType() == XmlReader::StartElement) {
       if (reader.name() == "type") {
         plugin.m_Type = getPluginType(reader.attributes().value("name").toString());
+      } else {
+        //qDebug() << "typeDescriptor->" << reader.name();
       }
     }
   }
 }
 
 
-void FomodInstallerDialog::readConditionFlags(QXmlStreamReader &reader, Plugin &plugin)
+void FomodInstallerDialog::readConditionFlags(XmlReader &reader, Plugin &plugin)
 {
-  while (!((reader.readNext() == QXmlStreamReader::EndElement) &&
+  while (!((reader.readNext() == XmlReader::EndElement) &&
            (reader.name() == "conditionFlags"))) {
-    if (reader.tokenType() == QXmlStreamReader::Invalid) throw MyException(tr("Invalid xml token"));
-    if (reader.tokenType() == QXmlStreamReader::StartElement) {
+    if (reader.tokenType() == XmlReader::Invalid) throw MyException(tr("Invalid xml token"));
+    if (reader.tokenType() == XmlReader::StartElement) {
       if (reader.name() == "flag") {
         QStringRef var = reader.attributes().value("name");
         QString name = var.toString();
@@ -755,15 +759,15 @@ bool FomodInstallerDialog::byPriority(const FileDescriptor *LHS, const FileDescr
 }
 
 
-FomodInstallerDialog::Plugin FomodInstallerDialog::readPlugin(QXmlStreamReader &reader)
+FomodInstallerDialog::Plugin FomodInstallerDialog::readPlugin(XmlReader &reader)
 {
   Plugin result;
   result.m_Name = reader.attributes().value("name").toString();
 
-  while (!((reader.readNext() == QXmlStreamReader::EndElement) &&
+  while (!((reader.readNext() == XmlReader::EndElement) &&
            (reader.name() == "plugin"))) {
-    if (reader.tokenType() == QXmlStreamReader::Invalid) throw MyException(tr("Invalid xml token"));
-    if (reader.tokenType() == QXmlStreamReader::StartElement) {
+    if (reader.tokenType() == XmlReader::Invalid) throw MyException(tr("Invalid xml token"));
+    if (reader.tokenType() == XmlReader::StartElement) {
       if (reader.name() == "description") {
         result.m_Description = readContentUntil(reader, "description").trimmed();
       } else if (reader.name() == "image") {
@@ -787,7 +791,7 @@ FomodInstallerDialog::Plugin FomodInstallerDialog::readPlugin(QXmlStreamReader &
 }
 
 
-void FomodInstallerDialog::readPlugins(QXmlStreamReader &reader, GroupType groupType, QLayout *layout)
+void FomodInstallerDialog::readPlugins(XmlReader &reader, GroupType groupType, QLayout *layout)
 {
   ItemOrder pluginOrder = reader.attributes().hasAttribute("order") ? getItemOrder(reader.attributes().value("order").toString())
                                                                     : ORDER_ASCENDING;
@@ -796,11 +800,11 @@ void FomodInstallerDialog::readPlugins(QXmlStreamReader &reader, GroupType group
 
   std::vector<QAbstractButton*> controls;
 
-  while (!((reader.readNext() == QXmlStreamReader::EndElement) &&
+  while (!((reader.readNext() == XmlReader::EndElement) &&
            (reader.name() == "plugins")) &&
          !reader.atEnd()) {
-    if (reader.tokenType() == QXmlStreamReader::Invalid) throw MyException(tr("Invalid xml token"));
-    if (reader.tokenType() == QXmlStreamReader::StartElement) {
+    if (reader.tokenType() == XmlReader::Invalid) throw MyException(tr("Invalid xml token"));
+    if (reader.tokenType() == XmlReader::StartElement) {
       if (reader.name() == "plugin") {
         Plugin plugin = readPlugin(reader);
         QAbstractButton *newControl = nullptr;
@@ -903,7 +907,7 @@ void FomodInstallerDialog::readPlugins(QXmlStreamReader &reader, GroupType group
 }
 
 
-void FomodInstallerDialog::readGroup(QXmlStreamReader &reader, QLayout *layout)
+void FomodInstallerDialog::readGroup(XmlReader &reader, QLayout *layout)
 {
   //FileGroup result;
   QString name = reader.attributes().value("name").toString();
@@ -918,10 +922,10 @@ void FomodInstallerDialog::readGroup(QXmlStreamReader &reader, QLayout *layout)
 
   QVBoxLayout *groupLayout = new QVBoxLayout;
 
-  while (!((reader.readNext() == QXmlStreamReader::EndElement) &&
+  while (!((reader.readNext() == XmlReader::EndElement) &&
            (reader.name() == "group"))) {
-    if (reader.tokenType() == QXmlStreamReader::Invalid) throw MyException(tr("Invalid xml token"));
-    if (reader.tokenType() == QXmlStreamReader::StartElement) {
+    if (reader.tokenType() == XmlReader::Invalid) throw MyException(tr("Invalid xml token"));
+    if (reader.tokenType() == XmlReader::StartElement) {
       if (reader.name() == "plugins") {
         readPlugins(reader, type, groupLayout);
       }
@@ -933,12 +937,12 @@ void FomodInstallerDialog::readGroup(QXmlStreamReader &reader, QLayout *layout)
 }
 
 
-void FomodInstallerDialog::readGroups(QXmlStreamReader &reader, QLayout *layout)
+void FomodInstallerDialog::readGroups(XmlReader &reader, QLayout *layout)
 {
-  while (!((reader.readNext() == QXmlStreamReader::EndElement) &&
+  while (!((reader.readNext() == XmlReader::EndElement) &&
            (reader.name() == "optionalFileGroups"))) {
-    if (reader.tokenType() == QXmlStreamReader::Invalid) throw MyException(tr("Invalid xml token"));
-    if (reader.tokenType() == QXmlStreamReader::StartElement) {
+    if (reader.tokenType() == XmlReader::Invalid) throw MyException(tr("Invalid xml token"));
+    if (reader.tokenType() == XmlReader::StartElement) {
       if (reader.name() == "group") {
         readGroup(reader, layout);
       }
@@ -947,7 +951,7 @@ void FomodInstallerDialog::readGroups(QXmlStreamReader &reader, QLayout *layout)
 }
 
 
-void FomodInstallerDialog::readVisible(QXmlStreamReader &reader, QVariantList &conditions, ConditionOperator &op)
+void FomodInstallerDialog::readVisible(XmlReader &reader, QVariantList &conditions, ConditionOperator &op)
 {
   if (reader.attributes().hasAttribute("operator")) {
     QString opName = reader.attributes().value("operator").toString();
@@ -960,20 +964,18 @@ void FomodInstallerDialog::readVisible(QXmlStreamReader &reader, QVariantList &c
     op = OP_AND;
   }
 
-  while (!((reader.readNext() == QXmlStreamReader::EndElement) &&
-           (reader.name() == "visible"))) {
-    if (reader.tokenType() == QXmlStreamReader::Invalid) throw MyException(tr("Invalid xml token"));
-    if (reader.tokenType() == QXmlStreamReader::StartElement) {
-      if (reader.name() == "flagDependency") {
-        ValueCondition condition(reader.attributes().value("flag").toString(),
-                                 reader.attributes().value("value").toString());
-        conditions.append(qVariantFromValue(condition));
-      }
+  while (reader.getNextElement()) {
+    if (reader.name() == "flagDependency") {
+      ValueCondition condition(reader.attributes().value("flag").toString(),
+                               reader.attributes().value("value").toString());
+      conditions.append(qVariantFromValue(condition));
+    } else {
+      reader.unexpected();
     }
   }
 }
 
-QGroupBox *FomodInstallerDialog::readInstallerStep(QXmlStreamReader &reader)
+QGroupBox *FomodInstallerDialog::readInstallerStep(XmlReader &reader)
 {
   QString name = reader.attributes().value("name").toString();
   QGroupBox *page = new QGroupBox(name);
@@ -985,15 +987,16 @@ QGroupBox *FomodInstallerDialog::readInstallerStep(QXmlStreamReader &reader)
   QVariantList conditions;
   ConditionOperator conditionOperator = OP_AND;
 
-  while (!((reader.readNext() == QXmlStreamReader::EndElement) &&
-           (reader.name() == "installStep"))) {
-    if (reader.tokenType() == QXmlStreamReader::Invalid) throw MyException(tr("Invalid xml token"));
-    if (reader.tokenType() == QXmlStreamReader::StartElement) {
-      if (reader.name() == "optionalFileGroups") {
-        readGroups(reader, scrollLayout);
-      } else if (reader.name() == "visible") {
-        readVisible(reader, conditions, conditionOperator);
-      }
+  //sequence:
+  //  visible (optional)
+  //  optionalFileGroups
+  while (reader.getNextElement()) {
+    if (reader.name() == "visible") {
+      readVisible(reader, conditions, conditionOperator);
+    } else if (reader.name() == "optionalFileGroups") {
+      readGroups(reader, scrollLayout);
+    } else {
+      reader.unexpected();
     }
   }
   if (conditions.length() != 0) {
@@ -1010,20 +1013,19 @@ QGroupBox *FomodInstallerDialog::readInstallerStep(QXmlStreamReader &reader)
 }
 
 
-void FomodInstallerDialog::readInstallerSteps(QXmlStreamReader &reader)
+void FomodInstallerDialog::readInstallerSteps(XmlReader &reader)
 {
   ItemOrder stepOrder = reader.attributes().hasAttribute("order") ? getItemOrder(reader.attributes().value("order").toString())
                                                                     : ORDER_ASCENDING;
 
   std::vector<QGroupBox*> pages;
 
-  while (!((reader.readNext() == QXmlStreamReader::EndElement) &&
-           (reader.name() == "installSteps"))) {
-    if (reader.tokenType() == QXmlStreamReader::Invalid) throw MyException(tr("Invalid xml token"));
-    if (reader.tokenType() == QXmlStreamReader::StartElement) {
-      if (reader.name() == "installStep") {
-        pages.push_back(readInstallerStep(reader));
-      }
+  //sequence installStep (1 or more)
+  while (reader.getNextElement()) {
+    if (reader.name() == "installStep") {
+      pages.push_back(readInstallerStep(reader));
+    } else {
+      reader.unexpected();
     }
   }
 
@@ -1039,7 +1041,7 @@ void FomodInstallerDialog::readInstallerSteps(QXmlStreamReader &reader)
 }
 
 
-void FomodInstallerDialog::readConditionalDependency(QXmlStreamReader &reader, SubCondition &conditional)
+void FomodInstallerDialog::readConditionalDependency(XmlReader &reader, SubCondition &conditional)
 {
   QStringRef dependencyOperator = reader.attributes().value("operator");
   if (dependencyOperator == "And") {
@@ -1048,10 +1050,11 @@ void FomodInstallerDialog::readConditionalDependency(QXmlStreamReader &reader, S
     conditional.m_Operator = OP_OR;
   } // otherwise operator is not set (which we can ignore) or invalid (which we should report actually)
 
-  while (!((reader.readNext() == QXmlStreamReader::EndElement) &&
+  while (!((reader.readNext() == XmlReader::EndElement) &&
            (reader.name() == "dependencies"))) {
-    if (reader.tokenType() == QXmlStreamReader::Invalid) throw MyException(tr("Invalid xml token"));
-    if (reader.tokenType() == QXmlStreamReader::StartElement) {
+    if (reader.tokenType() == XmlReader::Invalid) throw MyException(tr("Invalid xml token"));
+    if (reader.tokenType() == XmlReader::StartElement) {
+      qDebug() << "In while: " << reader.name();
       if (reader.name() == "flagDependency") {
         conditional.m_Conditions.push_back(new ValueCondition(reader.attributes().value("flag").toString(),
                                                               reader.attributes().value("value").toString()));
@@ -1060,22 +1063,24 @@ void FomodInstallerDialog::readConditionalDependency(QXmlStreamReader &reader, S
         readConditionalDependency(reader, *nested);
         conditional.m_Conditions.push_back(nested);
       } else if (reader.name() == "fileDependency") {
+        qDebug() << reader.name();
         conditional.m_Conditions.push_back(new FileCondition(reader.attributes().value("file").toString(),
                                                              reader.attributes().value("state").toString()));
       }
     }
   }
+  qDebug() << "End while: " << reader.name();
 }
 
 
-FomodInstallerDialog::ConditionalInstall FomodInstallerDialog::readConditionalPattern(QXmlStreamReader &reader)
+FomodInstallerDialog::ConditionalInstall FomodInstallerDialog::readConditionalPattern(XmlReader &reader)
 {
   ConditionalInstall result;
   result.m_Condition.m_Operator = OP_AND;
-  while (!((reader.readNext() == QXmlStreamReader::EndElement) &&
+  while (!((reader.readNext() == XmlReader::EndElement) &&
            (reader.name() == "pattern"))) {
-    if (reader.tokenType() == QXmlStreamReader::Invalid) throw MyException(tr("Invalid xml token"));
-    if (reader.tokenType() == QXmlStreamReader::StartElement) {
+    if (reader.tokenType() == XmlReader::Invalid) throw MyException(tr("Invalid xml token"));
+    if (reader.tokenType() == XmlReader::StartElement) {
       if (reader.name() == "dependencies") {
         readConditionalDependency(reader, result.m_Condition);
       } else if (reader.name() == "files") {
@@ -1087,17 +1092,17 @@ FomodInstallerDialog::ConditionalInstall FomodInstallerDialog::readConditionalPa
 }
 
 
-void FomodInstallerDialog::readConditionalFileInstalls(QXmlStreamReader &reader)
+void FomodInstallerDialog::readConditionalFileInstalls(XmlReader &reader)
 {
-  while (!((reader.readNext() == QXmlStreamReader::EndElement) &&
+  while (!((reader.readNext() == XmlReader::EndElement) &&
            (reader.name() == "conditionalFileInstalls"))) {
-    if (reader.tokenType() == QXmlStreamReader::Invalid) throw MyException(tr("Invalid xml token"));
-    if (reader.tokenType() == QXmlStreamReader::StartElement) {
+    if (reader.tokenType() == XmlReader::Invalid) throw MyException(tr("Invalid xml token"));
+    if (reader.tokenType() == XmlReader::StartElement) {
       if (reader.name() == "patterns") {
-        while (!((reader.readNext() == QXmlStreamReader::EndElement) &&
+        while (!((reader.readNext() == XmlReader::EndElement) &&
                  (reader.name() == "patterns"))) {
-          if (reader.tokenType() == QXmlStreamReader::Invalid) throw MyException(tr("Invalid xml token"));
-          if (reader.tokenType() == QXmlStreamReader::StartElement) {
+          if (reader.tokenType() == XmlReader::Invalid) throw MyException(tr("Invalid xml token"));
+          if (reader.tokenType() == XmlReader::StartElement) {
             if (reader.name() == "pattern") {
               m_ConditionalInstalls.push_back(readConditionalPattern(reader));
             }
@@ -1108,27 +1113,71 @@ void FomodInstallerDialog::readConditionalFileInstalls(QXmlStreamReader &reader)
   }
 }
 
-
-void FomodInstallerDialog::parseModuleConfig(QXmlStreamReader &reader)
+void FomodInstallerDialog::readModuleTitle(XmlReader &reader)
 {
-  while (!reader.atEnd() && !reader.hasError()) {
-    switch (reader.readNext()) {
-      case QXmlStreamReader::StartElement: {
-        if (reader.name() == "installSteps") {
-          readInstallerSteps(reader);
-        } else if (reader.name() == "requiredInstallFiles") {
-          readFileList(reader, m_RequiredFiles);
-        } else if (reader.name() == "conditionalFileInstalls") {
-          readConditionalFileInstalls(reader);
-        }
-      } break;
-      default: {} break;
+  //I really need an example which gets exotic
+  //I believe this should only contain a text element and properties
+  while (!reader.atEnd() && reader.readNext() != XmlReader::EndElement) {
+    if (reader.tokenType() == XmlReader::Characters) {
+      QString modname = reader.text().toString();
+      /**/qDebug() << "module name : "  << modname;
     }
+  }
+}
+
+void FomodInstallerDialog::readModuleConfiguration(XmlReader &reader)
+{
+  //sequence:
+  //  modulename
+  //  optional - moduleimage
+  //  optional - requiredinstallfiles
+  //  optional - installsteps
+  //  optional - conditionalfileinstalls
+  processXmlTag(reader, "moduleName", &FomodInstallerDialog::readModuleTitle);
+  while (reader.getNextElement()) {
+    if (reader.name() == "moduleImage") {
+      QString s = reader.readElementText(XmlReader::IncludeChildElements);
+      qDebug() << " module image " << s;
+      //do something useful
+    } else if (reader.name() == "moduleDependencies") {
+      QString s = reader.readElementText(XmlReader::IncludeChildElements);
+      qDebug() << " module dependencies " << s;
+      //do something useful
+    } else if (reader.name() == "requiredInstallFiles") {
+      readFileList(reader, m_RequiredFiles);
+    } else if (reader.name() == "installSteps") {
+      readInstallerSteps(reader);
+    } else if (reader.name() == "conditionalFileInstalls") {
+      readConditionalFileInstalls(reader);
+    } else {
+      reader.unexpected();
+    }
+  }
+}
+
+void FomodInstallerDialog::parseModuleConfig(XmlReader &reader)
+{
+  if (reader.readNext() != XmlReader::StartDocument) {
+    throw XmlParseError(QString("Expected document start at line ").arg(reader.lineNumber()));
+  }
+  processXmlTag(reader, "config", &FomodInstallerDialog::readModuleConfiguration);
+  if (reader.readNext() != XmlReader::EndDocument) {
+    throw XmlParseError(QString("Expected document end at line ").arg(reader.lineNumber()));
   }
   if (reader.hasError()) {
     throw XmlParseError(QString("%1 in line %2").arg(reader.errorString()).arg(reader.lineNumber()));
   }
   activateCurrentPage();
+}
+
+
+void FomodInstallerDialog::processXmlTag(XmlReader &reader, char const *tag, TagProcessor func)
+{
+  if (reader.readNext() == XmlReader::StartElement && reader.name() == tag) {
+    (this->*func)(reader);
+  } else if (! reader.hasError()) {
+    reader.raiseError(QString("Expected %1, got %2").arg(tag).arg(reader.name().toString()));
+  }
 }
 
 

@@ -42,7 +42,7 @@ class FomodInstallerDialog;
 class ValueCondition;
 class SubCondition;
 class FileCondition;
-
+class XmlReader;
 
 class IConditionTester {
 public:
@@ -91,7 +91,6 @@ public:
 };
 
 Q_DECLARE_METATYPE(ValueCondition)
-
 
 class FileDescriptor : public QObject {
   Q_OBJECT
@@ -236,11 +235,11 @@ private:
 
 private:
 
-  QString readContent(QXmlStreamReader &reader);
-  QString readContentUntil(QXmlStreamReader &reader, const QString &endTag);
+  QString readContent(XmlReader &reader);
+  QString readContentUntil(XmlReader &reader, const QString &endTag);
   void readInfoXml();
   void readModuleConfigXml();
-  void parseInfo(QXmlStreamReader &data);
+  void parseInfo(XmlReader &data);
 
   void updateNameEdit();
 
@@ -253,20 +252,26 @@ private:
   bool copyFileIterator(MOBase::DirectoryTree *sourceTree, MOBase::DirectoryTree *destinationTree,
                         const FileDescriptor *descriptor,
                         Leaves *leaves, MOBase::DirectoryTree::Overwrites *overwrites);
-  void readFileList(QXmlStreamReader &reader, FileDescriptorList &fileList);
-  void readPluginType(QXmlStreamReader &reader, Plugin &plugin);
-  void readConditionFlags(QXmlStreamReader &reader, Plugin &plugin);
-  FomodInstallerDialog::Plugin readPlugin(QXmlStreamReader &reader);
-  void readPlugins(QXmlStreamReader &reader, GroupType groupType, QLayout *layout);
-  void readGroup(QXmlStreamReader &reader, QLayout *layout);
-  void readGroups(QXmlStreamReader &reader, QLayout *layout);
-  void readVisible(QXmlStreamReader &reader, QVariantList &conditions, ConditionOperator &op);
-  QGroupBox *readInstallerStep(QXmlStreamReader &reader);
-  ConditionalInstall readConditionalPattern(QXmlStreamReader &reader);
-  void readConditionalDependency(QXmlStreamReader &reader, SubCondition &conditional);
-  void readConditionalFileInstalls(QXmlStreamReader &reader);
-  void readInstallerSteps(QXmlStreamReader &reader);
-  void parseModuleConfig(QXmlStreamReader &data);
+
+  typedef void (FomodInstallerDialog::*TagProcessor)(XmlReader &reader);
+  void processXmlTag(XmlReader &reader, char const *tag, TagProcessor func);
+
+  void readFileList(XmlReader &reader, FileDescriptorList &fileList);
+  void readPluginType(XmlReader &reader, Plugin &plugin);
+  void readConditionFlags(XmlReader &reader, Plugin &plugin);
+  FomodInstallerDialog::Plugin readPlugin(XmlReader &reader);
+  void readPlugins(XmlReader &reader, GroupType groupType, QLayout *layout);
+  void readGroup(XmlReader &reader, QLayout *layout);
+  void readGroups(XmlReader &reader, QLayout *layout);
+  void readVisible(XmlReader &reader, QVariantList &conditions, ConditionOperator &op);
+  QGroupBox *readInstallerStep(XmlReader &reader);
+  ConditionalInstall readConditionalPattern(XmlReader &reader);
+  void readConditionalDependency(XmlReader &reader, SubCondition &conditional);
+  void readConditionalFileInstalls(XmlReader &reader);
+  void readInstallerSteps(XmlReader &reader);
+  void readModuleTitle(XmlReader &reader);
+  void readModuleConfiguration(XmlReader &reader);
+  void parseModuleConfig(XmlReader &data);
   void highlightControl(QAbstractButton *button);
 
   bool testCondition(int maxIndex, const QString &flag, const QString &value) const;
