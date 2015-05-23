@@ -12,7 +12,6 @@ bool XmlReader::getNextElement(QString const &start)
       case EndElement:
         if (name() != start) {
           qWarning() << "Got end of " << name() << ", expected " << start << " at " << lineNumber();
-          /**/throw MyException("bad xml");
           continue;
         }
         return false;
@@ -21,11 +20,11 @@ bool XmlReader::getNextElement(QString const &start)
         return true;
 
       case Invalid:
+        throw MyException("bad xml");
         return false;
 
       default:
         qWarning() << "Unexpected token type " << tokenString() << " at " << lineNumber();
-        /**/throw MyException("bad xml");
     }
   }
   return false;
@@ -38,7 +37,6 @@ void XmlReader::unexpected()
   QString s = readElementText(IncludeChildElements);
   //Print them out if in debugging mode
   qDebug() << " contains " << s;
-  /**/throw MyException("bad xml");
 }
 
 void XmlReader::finishedElement()
@@ -49,12 +47,12 @@ void XmlReader::finishedElement()
       case EndElement:
         if (name() != self) {
           qWarning() << "Got end element for " << name() << ", expected " << self << " at " << lineNumber();
-          /**/throw MyException("bad xml");
           continue;
         }
         return;
 
       case Invalid:
+        throw MyException("bad xml");
         return;
 
       case StartElement:
@@ -63,7 +61,6 @@ void XmlReader::finishedElement()
 
       default:
         qWarning() << "Unexpected token type " << tokenString() << " at " << lineNumber();
-        /**/throw MyException("bad xml");
     }
   }
 }
@@ -79,7 +76,6 @@ QString XmlReader::getText()
   }
   if (tokenType() != EndElement) {
       qWarning() << "Unexpected token type " << tokenString() << " at " << lineNumber();
-      /**/throw MyException("bad xml");
   }
   return result;
 }
