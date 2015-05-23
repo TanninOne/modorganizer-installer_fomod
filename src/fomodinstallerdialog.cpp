@@ -40,6 +40,7 @@ along with Mod Organizer.  If not, see <http://www.gnu.org/licenses/>.
 
 using namespace MOBase;
 
+
 bool ControlsAscending(QAbstractButton *LHS, QAbstractButton *RHS)
 {
   return LHS->text() < RHS->text();
@@ -171,7 +172,7 @@ void FomodInstallerDialog::readInfoXml()
     bool success = false;
     std::string errorMessage;
     try {
-      XmlReader reader(&file);
+      QXmlStreamReader reader(&file);
       parseInfo(reader);
       success = true;
     } catch (const XmlParseError &e) {
@@ -448,22 +449,25 @@ bool FomodInstallerDialog::testCondition(int maxIndex, const ValueCondition *val
   return testCondition(maxIndex, valCondition->m_Name, valCondition->m_Value);
 }
 
+bool FomodInstallerDialog::testCondition(int maxIndex, const ConditionFlag *conditionFlag) const
+{
+  return testCondition(maxIndex, conditionFlag->m_Name, conditionFlag->m_Value);
+}
 
 bool FomodInstallerDialog::testCondition(int maxIndex, const SubCondition *condition) const
 {
-  bool match = condition->m_Operator == OP_AND;
-  for (auto conditionIter = condition->m_Conditions.begin();
-       conditionIter != condition->m_Conditions.end(); ++conditionIter) {
-    bool conditionMatches = (*conditionIter)->test(maxIndex, this);
-    if (conditionMatches && (condition->m_Operator == OP_OR)) {
-      match = true;
-      break;
-    } else if (!conditionMatches && (condition->m_Operator == OP_AND)) {
-      match = false;
-      break;
+  ConditionOperator op = condition->m_Operator;
+  for (Condition const *cond : condition->m_Conditions) {
+    bool conditionMatches = cond->test(maxIndex, this);
+    if (op == OP_OR && conditionMatches) {
+      return true;
+    }
+    if (op == OP_AND && !conditionMatches) {
+      return false;
     }
   }
-  return match;
+  //If we get through here, everything matched (AND) or nothing matched (OR)
+  return op == OP_AND;
 }
 
 QString FomodInstallerDialog::toString(IPluginList::PluginStates state)
@@ -478,8 +482,6 @@ bool FomodInstallerDialog::testCondition(int, const FileCondition *condition) co
 {
   return toString(m_FileCheck(condition->m_File)) == condition->m_State;
 }
-
-//#error "incomplete support for nested conditions. heap-allocated conditions aren't cleaned up yet"
 
 DirectoryTree *FomodInstallerDialog::updateTree(DirectoryTree *tree)
 {
@@ -564,13 +566,12 @@ bool FomodInstallerDialog::eventFilter(QObject *object, QEvent *event)
   QAbstractButton *button = qobject_cast<QAbstractButton*>(object);
   if ((button != nullptr) && (event->type() == QEvent::HoverEnter)) {
     highlightControl(button);
-
   }
   return QDialog::eventFilter(object, event);
 }
 
 
-QString FomodInstallerDialog::readContent(XmlReader &reader)
+QString FomodInstallerDialog::readContent(QXmlStreamReader &reader)
 {
   if (reader.readNext() == XmlReader::Characters) {
     return reader.text().toString();
@@ -580,25 +581,11 @@ QString FomodInstallerDialog::readContent(XmlReader &reader)
 }
 
 
-QString FomodInstallerDialog::readContentUntil(XmlReader &reader, const QString &endTag)
+void FomodInstallerDialog::parseInfo(QXmlStreamReader &reader)
 {
-  QString result;
-  while (!((reader.readNext() == XmlReader::EndElement) &&
-           (reader.name().compare(endTag) == 0))) {
-    if (reader.tokenType() == XmlReader::Invalid) throw MyException(tr("Invalid xml token"));
-    if (reader.tokenType() == XmlReader::Characters) {
-      result += reader.text().toString();
-    }
-  }
-  return result;
-}
-
-
-void FomodInstallerDialog::parseInfo(XmlReader &reader)
-{
-  while (!reader.atEnd() && !reader.hasError()) {
+  while (!reader.atEnd()) {
     switch (reader.readNext()) {
-      case XmlReader::StartElement: {
+      case QXmlStreamReader::StartElement: {
         if (reader.name() == "Name") {
           m_ModName.update(readContent(reader), GUESS_META);
           updateNameEdit();
@@ -676,27 +663,22 @@ FomodInstallerDialog::PluginType FomodInstallerDialog::getPluginType(const QStri
 
 void FomodInstallerDialog::readFileList(XmlReader &reader, FileDescriptorList &fileList)
 {
-  QStringRef openTag = reader.name();
-  while (!((reader.readNext() == XmlReader::EndElement) &&
-           (reader.name() == openTag))) {
-    if (reader.tokenType() == XmlReader::Invalid) throw MyException(tr("Invalid xml token"));
-    if (reader.tokenType() == XmlReader::StartElement) {
-      if ((reader.name() == "folder") ||
-          (reader.name() == "file")) {
-        QXmlStreamAttributes attributes = reader.attributes();
-        //This is a horrendous hack. It doesn't make sense to specify an empty source folder name,
-        //as it would require you to copy everything including the fomod directory. However, people
-        //have been known to write entries like <folder source="" destination=""/> in order to
-        //achieve an option that does nothing. Are groups and buttons that hard?
-        //An empty source file is very probably a serious error but given people do the above, I'm
-        //assuming that they probably assume <file source="" destination=""/> will work the same,
-        //so I'm not differentiating.
-        //Similarly, I'm not checking for the destination if the source is blank. Why'd you want to
-        //copy the fomod directory on an install?
-        if (attributes.value("source").isEmpty()) {
-          qDebug("Ignoring %s entry with empty source.", reader.name().toUtf8().constData());
-          continue;
-        }
+  QString const self(reader.name().toString());
+  while (reader.getNextElement(self)) {
+    if (reader.name() == "folder" || reader.name() == "file") {
+      QXmlStreamAttributes attributes = reader.attributes();
+      //This is a horrendous hack. It doesn't make sense to specify an empty source folder name,
+      //as it would require you to copy everything including the fomod directory. However, people
+      //have been known to write entries like <folder source="" destination=""/> in order to
+      //achieve an option that does nothing. Are groups and buttons that hard?
+      //An empty source file is very probably a serious error but given people do the above, I'm
+      //assuming that they probably assume <file source="" destination=""/> will work the same,
+      //so I'm not differentiating.
+      //Similarly, I'm not checking for the destination if the source is blank. Why'd you want to
+      //copy the fomod directory on an install?
+      if (attributes.value("source").isEmpty()) {
+        qDebug("Ignoring %s entry with empty source.", reader.name().toUtf8().constData());
+      } else {
         FileDescriptor *file = new FileDescriptor(this);
         file->m_Source = attributes.value("source").toString();
         file->m_Destination = attributes.hasAttribute("destination") ? attributes.value("destination").toString()
@@ -712,40 +694,92 @@ void FomodInstallerDialog::readFileList(XmlReader &reader, FileDescriptorList &f
 
         fileList.push_back(file);
       }
+      reader.finishedElement();
+    } else {
+      reader.unexpected();
     }
   }
 }
 
+void FomodInstallerDialog::readDependencyPattern(XmlReader &reader, DependencyPattern &pattern)
+{
+  //sequence
+  //  dependency
+  //  type
+  QString self(reader.name().toString());
+  while (reader.getNextElement(self)) {
+    if (reader.name() == "dependencies") {
+      readCompositeDependency(reader, pattern.condition);
+    } else if (reader.name() == "type") {
+      pattern.type = getPluginType(reader.attributes().value("name").toString());
+      reader.finishedElement();
+    } else {
+      reader.unexpected();
+    }
+  }
+}
+
+void FomodInstallerDialog::readDependencyPatternList(XmlReader &reader, DependencyPatternList &patterns)
+{
+  QString self(reader.name().toString());
+  while (reader.getNextElement(self)) {
+    if (reader.name() == "pattern") {
+      DependencyPattern pattern;
+      readDependencyPattern(reader, pattern);
+      patterns.push_back(pattern);
+    } else {
+      reader.unexpected();
+    }
+  }
+}
+
+void FomodInstallerDialog::readDependencyPluginType(XmlReader &reader, PluginTypeInfo &info)
+{
+  //sequence
+  // defaultType
+  // patterns
+  QString const self(reader.name().toString());
+  while (reader.getNextElement(self)) {
+    if (reader.name() == "defaultType") {
+      info.m_DefaultType = getPluginType(reader.attributes().value("name").toString());
+      reader.finishedElement();
+    } else if (reader.name() == "patterns") {
+      readDependencyPatternList(reader, info.m_DependencyPatterns);
+    } else {
+      reader.unexpected();
+    }
+  }
+}
 
 void FomodInstallerDialog::readPluginType(XmlReader &reader, Plugin &plugin)
 {
-  plugin.m_Type = TYPE_OPTIONAL;
-  while (!((reader.readNext() == XmlReader::EndElement) &&
-           (reader.name() == "typeDescriptor"))) {
-    if (reader.tokenType() == XmlReader::Invalid) throw MyException(tr("Invalid xml token"));
-    if (reader.tokenType() == XmlReader::StartElement) {
-      if (reader.name() == "type") {
-        plugin.m_Type = getPluginType(reader.attributes().value("name").toString());
-      } else {
-        //qDebug() << "typeDescriptor->" << reader.name();
-      }
+  //Have a choice here of precisely one of 'type' or 'dependencytype', so this is
+  //not strictly necessary
+  plugin.m_PluginType.m_DefaultType = TYPE_OPTIONAL;
+  QString const self(reader.name().toString());
+  while (reader.getNextElement(self)) {
+    if (reader.name() == "type") {
+      plugin.m_PluginType.m_DefaultType = getPluginType(reader.attributes().value("name").toString());
+      reader.finishedElement();
+    } else if (reader.name() == "dependencyType") {
+      readDependencyPluginType(reader, plugin.m_PluginType);
+    } else {
+      reader.unexpected();
     }
   }
 }
 
 
-void FomodInstallerDialog::readConditionFlags(XmlReader &reader, Plugin &plugin)
+void FomodInstallerDialog::readConditionFlagList(XmlReader &reader, ConditionFlagList &condflags)
 {
-  while (!((reader.readNext() == XmlReader::EndElement) &&
-           (reader.name() == "conditionFlags"))) {
-    if (reader.tokenType() == XmlReader::Invalid) throw MyException(tr("Invalid xml token"));
-    if (reader.tokenType() == XmlReader::StartElement) {
-      if (reader.name() == "flag") {
-        QStringRef var = reader.attributes().value("name");
-        QString name = var.toString();
-        QString content = readContent(reader);
-        plugin.m_Condition.m_Conditions.push_back(new ValueCondition(name, content));
-      }
+  QString const self(reader.name().toString());
+  while (reader.getNextElement(self)) {
+    if (reader.name() == "flag") {
+      QString name = reader.attributes().value("name").toString();
+      QString content = reader.getText();
+      condflags.push_back(ConditionFlag(name, content));
+    } else {
+      reader.unexpected();
     }
   }
 }
@@ -764,21 +798,21 @@ FomodInstallerDialog::Plugin FomodInstallerDialog::readPlugin(XmlReader &reader)
   Plugin result;
   result.m_Name = reader.attributes().value("name").toString();
 
-  while (!((reader.readNext() == XmlReader::EndElement) &&
-           (reader.name() == "plugin"))) {
-    if (reader.tokenType() == XmlReader::Invalid) throw MyException(tr("Invalid xml token"));
-    if (reader.tokenType() == XmlReader::StartElement) {
-      if (reader.name() == "description") {
-        result.m_Description = readContentUntil(reader, "description").trimmed();
-      } else if (reader.name() == "image") {
-        result.m_ImagePath = reader.attributes().value("path").toString();
-      } else if (reader.name() == "typeDescriptor") {
-        readPluginType(reader, result);
-      } else if (reader.name() == "conditionFlags") {
-        readConditionFlags(reader, result);
-      } else if (reader.name() == "files") {
-        readFileList(reader, result.m_Files);
-      }
+  QString const self(reader.name().toString());
+  while (reader.getNextElement(self)) {
+    if (reader.name() == "description") {
+      result.m_Description = reader.getText().trimmed();
+    } else if (reader.name() == "image") {
+      result.m_ImagePath = reader.attributes().value("path").toString();
+      reader.finishedElement();
+    } else if (reader.name() == "files") {
+      readFileList(reader, result.m_Files);
+    } else if (reader.name() == "conditionFlags") {
+      readConditionFlagList(reader, result.m_ConditionFlags);
+    } else if (reader.name() == "typeDescriptor") {
+      readPluginType(reader, result);
+    } else {
+      reader.unexpected();
     }
   }
 
@@ -791,99 +825,108 @@ FomodInstallerDialog::Plugin FomodInstallerDialog::readPlugin(XmlReader &reader)
 }
 
 
-void FomodInstallerDialog::readPlugins(XmlReader &reader, GroupType groupType, QLayout *layout)
+FomodInstallerDialog::PluginType FomodInstallerDialog::getPluginDependencyType(const PluginTypeInfo &info) const
+{
+  if (info.m_DependencyPatterns.size() != 0) {
+    //FIXME: I probably shouldn't do this till I display the screen, as this
+    //could have value conditions and the value might be set/changed as we go
+    //through screens.
+    //Hacking around for now
+    for (DependencyPattern const &pattern : info.m_DependencyPatterns) {
+      if (testCondition(/*maxindex*/1, &pattern.condition)) {
+          return pattern.type;
+      }
+    }
+  }
+  return info.m_DefaultType;
+}
+
+void FomodInstallerDialog::readPluginList(XmlReader &reader, GroupType groupType, QLayout *layout)
 {
   ItemOrder pluginOrder = reader.attributes().hasAttribute("order") ? getItemOrder(reader.attributes().value("order").toString())
                                                                     : ORDER_ASCENDING;
-  bool first = true;
   bool maySelectMore = true;
+  bool mustSelectOne = groupType == TYPE_SELECTATMOSTONE || groupType == TYPE_SELECTEXACTLYONE;
 
   std::vector<QAbstractButton*> controls;
 
-  while (!((reader.readNext() == XmlReader::EndElement) &&
-           (reader.name() == "plugins")) &&
-         !reader.atEnd()) {
-    if (reader.tokenType() == XmlReader::Invalid) throw MyException(tr("Invalid xml token"));
-    if (reader.tokenType() == XmlReader::StartElement) {
-      if (reader.name() == "plugin") {
-        Plugin plugin = readPlugin(reader);
-        QAbstractButton *newControl = nullptr;
-        switch (groupType) {
-          case TYPE_SELECTATLEASTONE:
-          case TYPE_SELECTANY: {
-            newControl = new QCheckBox(plugin.m_Name);
-          } break;
-          case TYPE_SELECTATMOSTONE: {
-            newControl = new QRadioButton(plugin.m_Name);
-          } break;
-          case TYPE_SELECTEXACTLYONE: {
-            newControl = new QRadioButton(plugin.m_Name);
-            if (first) {
-              newControl->setChecked(true);
-            }
-          } break;
-          case TYPE_SELECTALL: {
-            newControl = new QCheckBox(plugin.m_Name);
-            newControl->setChecked(true);
-            newControl->setEnabled(false);
-          } break;
-        }
-        newControl->setObjectName("choice");
-        newControl->setAttribute(Qt::WA_Hover);
-
-        switch (plugin.m_Type) {
-          case TYPE_REQUIRED: {
-            newControl->setChecked(true);
-            newControl->setEnabled(false);
-            newControl->setToolTip(tr("This component is required"));
-          } break;
-          case TYPE_RECOMMENDED: {
-            if (maySelectMore) {
-              newControl->setChecked(true);
-            }
-            newControl->setToolTip(tr("It is recommended you enable this component"));
-            if ((groupType == TYPE_SELECTATMOSTONE) || (groupType == TYPE_SELECTEXACTLYONE)) {
-              maySelectMore = false;
-            }
-          } break;
-          case TYPE_OPTIONAL: {
-            newControl->setToolTip(tr("Optional component"));
-          } break;
-          case TYPE_NOTUSABLE: {
-            newControl->setChecked(false);
-            newControl->setEnabled(false);
-            newControl->setToolTip(tr("This component is not usable in combination with other installed plugins"));
-          } break;
-          case TYPE_COULDBEUSABLE: {
-            newControl->setCheckable(true);
-            newControl->setIcon(QIcon(":/new/guiresources/warning_16"));
-            newControl->setToolTip(tr("You may be experiencing instability in combination with other installed plugins"));
-          } break;
-        }
-
-        newControl->setProperty("plugintype", plugin.m_Type);
-        newControl->setProperty("screenshot", plugin.m_ImagePath);
-        newControl->setProperty("description", plugin.m_Description);
-        QVariantList fileList;
-        for (FileDescriptorList::iterator iter = plugin.m_Files.begin(); iter != plugin.m_Files.end(); ++iter) {
-          fileList.append(qVariantFromValue(*iter));
-        }
-        newControl->setProperty("files", fileList);
-        QVariantList conditionFlags;
-        for (Condition *conditionBase : plugin.m_Condition.m_Conditions) {
-          ValueCondition *condition = dynamic_cast<ValueCondition*>(conditionBase);
-          if ((condition != nullptr) && (condition->m_Name.length() != 0)) {
-            conditionFlags.append(qVariantFromValue(ValueCondition(condition->m_Name, condition->m_Value)));
-          }
-        }
-        newControl->setProperty("conditionFlags", conditionFlags);
-        newControl->installEventFilter(this);
-        //We need somehow to check the 'toggled' signal. how do I do that
-        //void QAbstractButton::clicked ( bool checked ) [signal]
-        connect(newControl, SIGNAL(clicked()), this, SLOT(widgetButtonClicked()));
-        controls.push_back(newControl);
-        first = false;
+  QString const self(reader.name().toString());
+  while (reader.getNextElement(self)) {
+    if (reader.name() == "plugin") {
+      Plugin plugin = readPlugin(reader);
+      QAbstractButton *newControl = nullptr;
+      switch (groupType) {
+        case TYPE_SELECTATLEASTONE:
+        case TYPE_SELECTANY: {
+          newControl = new QCheckBox(plugin.m_Name);
+        } break;
+        case TYPE_SELECTATMOSTONE: {
+          newControl = new QRadioButton(plugin.m_Name);
+        } break;
+        case TYPE_SELECTEXACTLYONE: {
+          newControl = new QRadioButton(plugin.m_Name);
+        } break;
+        case TYPE_SELECTALL: {
+          newControl = new QCheckBox(plugin.m_Name);
+          newControl->setChecked(true);
+          newControl->setEnabled(false);
+        } break;
       }
+      newControl->setObjectName("choice");
+      newControl->setAttribute(Qt::WA_Hover);
+
+      PluginType type = getPluginDependencyType(plugin.m_PluginType);
+      switch (type) {
+        case TYPE_REQUIRED: {
+          maySelectMore = false;
+          newControl->setChecked(true);
+          newControl->setEnabled(false);
+          newControl->setToolTip(tr("This component is required"));
+        } break;
+        case TYPE_RECOMMENDED: {
+          if (!mustSelectOne || maySelectMore) {
+            newControl->setChecked(true);
+            maySelectMore = false;
+          }
+          newControl->setToolTip(tr("It is recommended you enable this component"));
+        } break;
+        case TYPE_OPTIONAL: {
+          newControl->setToolTip(tr("Optional component"));
+        } break;
+        case TYPE_NOTUSABLE: {
+          newControl->setChecked(false);
+          newControl->setEnabled(false);
+          newControl->setToolTip(tr("This component is not usable in combination with other installed plugins"));
+        } break;
+        case TYPE_COULDBEUSABLE: {
+          newControl->setCheckable(true);
+          newControl->setIcon(QIcon(":/new/guiresources/warning_16"));
+          newControl->setToolTip(tr("You may be experiencing instability in combination with other installed plugins"));
+        } break;
+      }
+
+      newControl->setProperty("plugintype", type);
+      newControl->setProperty("screenshot", plugin.m_ImagePath);
+      newControl->setProperty("description", plugin.m_Description);
+      QVariantList fileList;
+      for (FileDescriptorList::iterator iter = plugin.m_Files.begin(); iter != plugin.m_Files.end(); ++iter) {
+        fileList.append(qVariantFromValue(*iter));
+      }
+      newControl->setProperty("files", fileList);
+      QVariantList conditionFlags;
+      for (ConditionFlag const &conditionFlag : plugin.m_ConditionFlags) {
+        if (! conditionFlag.m_Name.isEmpty()) {
+          conditionFlags.append(qVariantFromValue(conditionFlag));
+        }
+      }
+      newControl->setProperty("conditionFlags", conditionFlags);
+      newControl->installEventFilter(this);
+      //We need somehow to check the 'toggled' signal. how do I do that
+      //void QAbstractButton::clicked ( bool checked ) [signal]
+      connect(newControl, SIGNAL(clicked()), this, SLOT(widgetButtonClicked()));
+      controls.push_back(newControl);
+    } else {
+      reader.unexpected();
     }
   }
 
@@ -893,6 +936,9 @@ void FomodInstallerDialog::readPlugins(XmlReader &reader, GroupType groupType, Q
     std::sort(controls.begin(), controls.end(), ControlsDescending);
   }
 
+  if (groupType == TYPE_SELECTEXACTLYONE && maySelectMore) {
+    controls[0]->setChecked(true);
+  }
   for (std::vector<QAbstractButton*>::const_iterator iter = controls.begin(); iter != controls.end(); ++iter) {
     layout->addWidget(*iter);
   }
@@ -922,13 +968,12 @@ void FomodInstallerDialog::readGroup(XmlReader &reader, QLayout *layout)
 
   QVBoxLayout *groupLayout = new QVBoxLayout;
 
-  while (!((reader.readNext() == XmlReader::EndElement) &&
-           (reader.name() == "group"))) {
-    if (reader.tokenType() == XmlReader::Invalid) throw MyException(tr("Invalid xml token"));
-    if (reader.tokenType() == XmlReader::StartElement) {
-      if (reader.name() == "plugins") {
-        readPlugins(reader, type, groupLayout);
-      }
+  QString const self(reader.name().toString());
+  while (reader.getNextElement(self)) {
+    if (reader.name() == "plugins") {
+      readPluginList(reader, type, groupLayout);
+    } else {
+      reader.unexpected();
     }
   }
 
@@ -937,45 +982,19 @@ void FomodInstallerDialog::readGroup(XmlReader &reader, QLayout *layout)
 }
 
 
-void FomodInstallerDialog::readGroups(XmlReader &reader, QLayout *layout)
+void FomodInstallerDialog::readGroupList(XmlReader &reader, QLayout *layout)
 {
-  while (!((reader.readNext() == XmlReader::EndElement) &&
-           (reader.name() == "optionalFileGroups"))) {
-    if (reader.tokenType() == XmlReader::Invalid) throw MyException(tr("Invalid xml token"));
-    if (reader.tokenType() == XmlReader::StartElement) {
-      if (reader.name() == "group") {
-        readGroup(reader, layout);
-      }
-    }
-  }
-}
-
-
-void FomodInstallerDialog::readVisible(XmlReader &reader, QVariantList &conditions, ConditionOperator &op)
-{
-  if (reader.attributes().hasAttribute("operator")) {
-    QString opName = reader.attributes().value("operator").toString();
-    if (opName == "Or") {
-      op = OP_OR;
-    } else {
-      op = OP_AND;
-    }
-  } else {
-    op = OP_AND;
-  }
-
-  while (reader.getNextElement()) {
-    if (reader.name() == "flagDependency") {
-      ValueCondition condition(reader.attributes().value("flag").toString(),
-                               reader.attributes().value("value").toString());
-      conditions.append(qVariantFromValue(condition));
+  QString const self(reader.name().toString());
+  while (reader.getNextElement(self)) {
+    if (reader.name() == "group") {
+      readGroup(reader, layout);
     } else {
       reader.unexpected();
     }
   }
 }
 
-QGroupBox *FomodInstallerDialog::readInstallerStep(XmlReader &reader)
+QGroupBox *FomodInstallerDialog::readInstallStep(XmlReader &reader)
 {
   QString name = reader.attributes().value("name").toString();
   QGroupBox *page = new QGroupBox(name);
@@ -984,24 +1003,26 @@ QGroupBox *FomodInstallerDialog::readInstallerStep(XmlReader &reader)
   QFrame *scrolledArea = new QFrame;
   QVBoxLayout *scrollLayout = new QVBoxLayout;
 
-  QVariantList conditions;
-  ConditionOperator conditionOperator = OP_AND;
+  SubCondition subcondition;
 
   //sequence:
   //  visible (optional)
   //  optionalFileGroups
-  while (reader.getNextElement()) {
+  QString const self(reader.name().toString());
+  while (reader.getNextElement(self)) {
     if (reader.name() == "visible") {
-      readVisible(reader, conditions, conditionOperator);
+      readCompositeDependency(reader, subcondition);
     } else if (reader.name() == "optionalFileGroups") {
-      readGroups(reader, scrollLayout);
+      readGroupList(reader, scrollLayout);
     } else {
       reader.unexpected();
     }
   }
-  if (conditions.length() != 0) {
-    page->setProperty("conditions", conditions);
-    page->setProperty("conditionOperator", conditionOperator);
+
+  if (subcondition.m_Conditions.size() != 0) {
+    //FIXME Is this actually OK? I'm storing a pointer in the property?
+    //Also AFAICS this is subject to memory leaks
+    page->setProperty("conditional", qVariantFromValue(subcondition));
   }
 
   scrolledArea->setLayout(scrollLayout);
@@ -1013,7 +1034,7 @@ QGroupBox *FomodInstallerDialog::readInstallerStep(XmlReader &reader)
 }
 
 
-void FomodInstallerDialog::readInstallerSteps(XmlReader &reader)
+void FomodInstallerDialog::readStepList(XmlReader &reader)
 {
   ItemOrder stepOrder = reader.attributes().hasAttribute("order") ? getItemOrder(reader.attributes().value("order").toString())
                                                                     : ORDER_ASCENDING;
@@ -1021,9 +1042,10 @@ void FomodInstallerDialog::readInstallerSteps(XmlReader &reader)
   std::vector<QGroupBox*> pages;
 
   //sequence installStep (1 or more)
-  while (reader.getNextElement()) {
+  QString const self(reader.name().toString());
+  while (reader.getNextElement(self)) {
     if (reader.name() == "installStep") {
-      pages.push_back(readInstallerStep(reader));
+      pages.push_back(readInstallStep(reader));
     } else {
       reader.unexpected();
     }
@@ -1041,7 +1063,7 @@ void FomodInstallerDialog::readInstallerSteps(XmlReader &reader)
 }
 
 
-void FomodInstallerDialog::readConditionalDependency(XmlReader &reader, SubCondition &conditional)
+void FomodInstallerDialog::readCompositeDependency(XmlReader &reader, SubCondition &conditional)
 {
   QStringRef dependencyOperator = reader.attributes().value("operator");
   if (dependencyOperator == "And") {
@@ -1050,80 +1072,70 @@ void FomodInstallerDialog::readConditionalDependency(XmlReader &reader, SubCondi
     conditional.m_Operator = OP_OR;
   } // otherwise operator is not set (which we can ignore) or invalid (which we should report actually)
 
-  while (!((reader.readNext() == XmlReader::EndElement) &&
-           (reader.name() == "dependencies"))) {
-    if (reader.tokenType() == XmlReader::Invalid) throw MyException(tr("Invalid xml token"));
-    if (reader.tokenType() == XmlReader::StartElement) {
-      qDebug() << "In while: " << reader.name();
-      if (reader.name() == "flagDependency") {
-        conditional.m_Conditions.push_back(new ValueCondition(reader.attributes().value("flag").toString(),
-                                                              reader.attributes().value("value").toString()));
-      } else if (reader.name() == "dependencies") {
-        SubCondition *nested = new SubCondition();
-        readConditionalDependency(reader, *nested);
-        conditional.m_Conditions.push_back(nested);
-      } else if (reader.name() == "fileDependency") {
-        qDebug() << reader.name();
-        conditional.m_Conditions.push_back(new FileCondition(reader.attributes().value("file").toString(),
-                                                             reader.attributes().value("state").toString()));
-      }
+  QString const self = reader.name().toString();
+  while (reader.getNextElement(self)) {
+    if (reader.name() == "fileDependency") {
+      conditional.m_Conditions.push_back(new FileCondition(reader.attributes().value("file").toString(),
+                                                           reader.attributes().value("state").toString()));
+      reader.finishedElement();
+    } else if (reader.name() == "flagDependency") {
+      conditional.m_Conditions.push_back(new ValueCondition(reader.attributes().value("flag").toString(),
+                                                            reader.attributes().value("value").toString()));
+      reader.finishedElement();
+    } else if (reader.name() == "dependencies") {
+      SubCondition *nested = new SubCondition();
+      readCompositeDependency(reader, *nested);
+      conditional.m_Conditions.push_back(nested);
+    } else {
+      //also gameDependency, fommDependency (before dependencies)
+      reader.unexpected();
     }
   }
-  qDebug() << "End while: " << reader.name();
 }
 
 
-FomodInstallerDialog::ConditionalInstall FomodInstallerDialog::readConditionalPattern(XmlReader &reader)
+FomodInstallerDialog::ConditionalInstall FomodInstallerDialog::readConditionalInstallPattern(XmlReader &reader)
 {
   ConditionalInstall result;
   result.m_Condition.m_Operator = OP_AND;
-  while (!((reader.readNext() == XmlReader::EndElement) &&
-           (reader.name() == "pattern"))) {
-    if (reader.tokenType() == XmlReader::Invalid) throw MyException(tr("Invalid xml token"));
-    if (reader.tokenType() == XmlReader::StartElement) {
-      if (reader.name() == "dependencies") {
-        readConditionalDependency(reader, result.m_Condition);
-      } else if (reader.name() == "files") {
-        readFileList(reader, result.m_Files);
-      }
+  QString const self(reader.name().toString());
+  while (reader.getNextElement(self)) {
+    if (reader.name() == "dependencies") {
+      readCompositeDependency(reader, result.m_Condition);
+    } else if (reader.name() == "files") {
+      readFileList(reader, result.m_Files);
+    } else {
+      reader.unexpected();
     }
   }
   return result;
 }
 
-
-void FomodInstallerDialog::readConditionalFileInstalls(XmlReader &reader)
+void FomodInstallerDialog::readConditionalFilePatternList(XmlReader &reader)
 {
-  while (!((reader.readNext() == XmlReader::EndElement) &&
-           (reader.name() == "conditionalFileInstalls"))) {
-    if (reader.tokenType() == XmlReader::Invalid) throw MyException(tr("Invalid xml token"));
-    if (reader.tokenType() == XmlReader::StartElement) {
-      if (reader.name() == "patterns") {
-        while (!((reader.readNext() == XmlReader::EndElement) &&
-                 (reader.name() == "patterns"))) {
-          if (reader.tokenType() == XmlReader::Invalid) throw MyException(tr("Invalid xml token"));
-          if (reader.tokenType() == XmlReader::StartElement) {
-            if (reader.name() == "pattern") {
-              m_ConditionalInstalls.push_back(readConditionalPattern(reader));
-            }
-          }
-        }
-      }
+  QString const self(reader.name().toString());
+  while (reader.getNextElement(self)) {
+    if (reader.name() == "pattern") {
+      m_ConditionalInstalls.push_back(readConditionalInstallPattern(reader));
+    } else {
+      reader.unexpected();
     }
   }
 }
 
-void FomodInstallerDialog::readModuleTitle(XmlReader &reader)
+void FomodInstallerDialog::readConditionalFileInstallList(XmlReader &reader)
 {
-  //I really need an example which gets exotic
-  //I believe this should only contain a text element and properties
-  while (!reader.atEnd() && reader.readNext() != XmlReader::EndElement) {
-    if (reader.tokenType() == XmlReader::Characters) {
-      QString modname = reader.text().toString();
-      /**/qDebug() << "module name : "  << modname;
+  QString const self(reader.name().toString());
+  //Technically there should be only one but it's easier to write like this
+  while (reader.getNextElement(self)) {
+    if (reader.name() == "patterns") {
+      readConditionalFilePatternList(reader);
+    } else {
+      reader.unexpected();
     }
   }
 }
+
 
 void FomodInstallerDialog::readModuleConfiguration(XmlReader &reader)
 {
@@ -1133,22 +1145,25 @@ void FomodInstallerDialog::readModuleConfiguration(XmlReader &reader)
   //  optional - requiredinstallfiles
   //  optional - installsteps
   //  optional - conditionalfileinstalls
-  processXmlTag(reader, "moduleName", &FomodInstallerDialog::readModuleTitle);
-  while (reader.getNextElement()) {
-    if (reader.name() == "moduleImage") {
-      QString s = reader.readElementText(XmlReader::IncludeChildElements);
-      qDebug() << " module image " << s;
-      //do something useful
+  QString const self(reader.name().toString());
+  while (reader.getNextElement(self)) {
+    if (reader.name() == "moduleName") {
+      QString title = reader.getText();
+      qDebug() << "module name : "  << title;
+    } else if (reader.name() == "moduleImage") {
+      //do something useful with the attributes of this
+      reader.finishedElement();
     } else if (reader.name() == "moduleDependencies") {
       QString s = reader.readElementText(XmlReader::IncludeChildElements);
       qDebug() << " module dependencies " << s;
-      //do something useful
+      //do something useful with the condition dependencies
+      //readCompositeDependency
     } else if (reader.name() == "requiredInstallFiles") {
       readFileList(reader, m_RequiredFiles);
     } else if (reader.name() == "installSteps") {
-      readInstallerSteps(reader);
+      readStepList(reader);
     } else if (reader.name() == "conditionalFileInstalls") {
-      readConditionalFileInstalls(reader);
+      readConditionalFileInstallList(reader);
     } else {
       reader.unexpected();
     }
@@ -1158,11 +1173,11 @@ void FomodInstallerDialog::readModuleConfiguration(XmlReader &reader)
 void FomodInstallerDialog::parseModuleConfig(XmlReader &reader)
 {
   if (reader.readNext() != XmlReader::StartDocument) {
-    throw XmlParseError(QString("Expected document start at line ").arg(reader.lineNumber()));
+    throw XmlParseError(QString("Expected document start at line %1").arg(reader.lineNumber()));
   }
   processXmlTag(reader, "config", &FomodInstallerDialog::readModuleConfiguration);
   if (reader.readNext() != XmlReader::EndDocument) {
-    throw XmlParseError(QString("Expected document end at line ").arg(reader.lineNumber()));
+    throw XmlParseError(QString("Expected document end at line %1").arg(reader.lineNumber()));
   }
   if (reader.hasError()) {
     throw XmlParseError(QString("%1 in line %2").arg(reader.errorString()).arg(reader.lineNumber()));
@@ -1216,6 +1231,7 @@ bool FomodInstallerDialog::testCondition(int maxIndex, const QString &flag, cons
   if (iter != m_ConditionCache.end()) {
     return iter->second == value;
   }
+
   // unset and set conditions are stored separately since the unset conditions need to be flushed when we move to the next page (condition
   // could be set there) while the set conditions need to be flushed when we move back in in the installer
   if (m_ConditionsUnset.find(flag) != m_ConditionsUnset.end()) {
@@ -1232,13 +1248,13 @@ bool FomodInstallerDialog::testCondition(int maxIndex, const QString &flag, cons
           QVariant temp = choice->property("conditionFlags");
           if (temp.isValid()) {
             QVariantList conditionFlags = temp.toList();
-            for (QVariantList::const_iterator iter = conditionFlags.begin(); iter != conditionFlags.end(); ++iter) {
-              ValueCondition condition = iter->value<ValueCondition>();
+            for (QVariant const &variant : conditionFlags) {
+              ConditionFlag condition = variant.value<ConditionFlag>();
               if (m_CacheConditions) {
                 m_ConditionCache[condition.m_Name] = condition.m_Value;
               }
-              if ((condition.m_Name == flag) && (condition.m_Value == value)) {
-                return true;
+              if (condition.m_Name == flag) {
+                return condition.m_Value == value;
               }
             }
           }
@@ -1256,25 +1272,12 @@ bool FomodInstallerDialog::testCondition(int maxIndex, const QString &flag, cons
 bool FomodInstallerDialog::testVisible(int pageIndex) const
 {
   QWidget *page = ui->stepsStack->widget(pageIndex);
-  QVariant temp = page->property("conditions");
-  int op = page->property("conditionOperator").toInt();
-  if (temp.isValid()) {
-    // go through the conditions for this page. returns false if one isn't fulfilled, true otherwise
-    QVariantList conditions = temp.toList();
-    for (QVariantList::const_iterator iter = conditions.begin(); iter != conditions.end(); ++iter) {
-      ValueCondition condition = iter->value<ValueCondition>();
-      bool res = testCondition(pageIndex, condition.m_Name, condition.m_Value);
-      if ((op == OP_AND) && !res) {
-        return false;
-      } else if ((op == OP_OR) && res) {
-        return true;
-      }
-    }
-    // for OP_AND this means no condition failed. for OP_OR it means none matched
-    return op == OP_AND;
-  } else {
-    return true;
+  QVariant subcond = page->property("conditional");
+  if (subcond.isValid()) {
+    SubCondition subc = subcond.value<SubCondition>();
+    return testCondition(pageIndex, &subc);
   }
+  return true;
 }
 
 

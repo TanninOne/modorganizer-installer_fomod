@@ -40,13 +40,16 @@ class FomodInstallerDialog;
 
 
 class ValueCondition;
+class ConditionFlag;
 class SubCondition;
 class FileCondition;
+
 class XmlReader;
 
 class IConditionTester {
 public:
   virtual bool testCondition(int maxIndex, const ValueCondition *condition) const = 0;
+  virtual bool testCondition(int maxIndex, const ConditionFlag *condition) const = 0;
   virtual bool testCondition(int maxIndex, const SubCondition *condition) const = 0;
   virtual bool testCondition(int maxIndex, const FileCondition *condition) const = 0;
 };
@@ -65,6 +68,16 @@ private:
   Condition &operator=(const Condition&);
 };
 
+class ConditionFlag : public Condition {
+public:
+  ConditionFlag() : Condition(), m_Name(), m_Value() {}
+  ConditionFlag(const QString &name, const QString &value) : Condition(), m_Name(name), m_Value(value) { }
+  virtual bool test(int maxIndex, const IConditionTester *tester) const { return tester->testCondition(maxIndex, this); }
+  QString m_Name;
+  QString m_Value;
+};
+Q_DECLARE_METATYPE(ConditionFlag)
+
 class ValueCondition : public Condition {
 public:
   ValueCondition() : Condition(), m_Name(), m_Value() {}
@@ -73,6 +86,7 @@ public:
   QString m_Name;
   QString m_Value;
 };
+Q_DECLARE_METATYPE(ValueCondition)
 
 class FileCondition : public Condition {
 public:
@@ -82,6 +96,7 @@ public:
   QString m_File;
   QString m_State;
 };
+Q_DECLARE_METATYPE(FileCondition)
 
 class SubCondition : public Condition {
 public:
@@ -89,8 +104,8 @@ public:
   ConditionOperator m_Operator;
   std::vector<Condition*> m_Conditions;
 };
+Q_DECLARE_METATYPE(SubCondition)
 
-Q_DECLARE_METATYPE(ValueCondition)
 
 class FileDescriptor : public QObject {
   Q_OBJECT
@@ -210,14 +225,27 @@ private:
     TYPE_COULDBEUSABLE
   };
 
+  struct DependencyPattern {
+    PluginType type;
+    SubCondition condition;
+  };
+
   typedef std::vector<FileDescriptor*> FileDescriptorList;
+  typedef std::vector<DependencyPattern> DependencyPatternList;
+  typedef std::vector<ConditionFlag> ConditionFlagList;
+
+  struct PluginTypeInfo
+  {
+    PluginType m_DefaultType;
+    DependencyPatternList m_DependencyPatterns;
+  };
 
   struct Plugin {
     QString m_Name;
     QString m_Description;
     QString m_ImagePath;
-    PluginType m_Type;
-    SubCondition m_Condition;
+    PluginTypeInfo m_PluginType;
+    ConditionFlagList m_ConditionFlags;
     FileDescriptorList m_Files;
   };
 
@@ -235,11 +263,10 @@ private:
 
 private:
 
-  QString readContent(XmlReader &reader);
-  QString readContentUntil(XmlReader &reader, const QString &endTag);
+  QString readContent(QXmlStreamReader &reader);
   void readInfoXml();
   void readModuleConfigXml();
-  void parseInfo(XmlReader &data);
+  void parseInfo(QXmlStreamReader &data);
 
   void updateNameEdit();
 
@@ -249,6 +276,8 @@ private:
   static PluginType getPluginType(const QString &typeString);
   static bool byPriority(const FileDescriptor *LHS, const FileDescriptor *RHS);
 
+  PluginType getPluginDependencyType(PluginTypeInfo const &info) const;
+
   bool copyFileIterator(MOBase::DirectoryTree *sourceTree, MOBase::DirectoryTree *destinationTree,
                         const FileDescriptor *descriptor,
                         Leaves *leaves, MOBase::DirectoryTree::Overwrites *overwrites);
@@ -257,25 +286,28 @@ private:
   void processXmlTag(XmlReader &reader, char const *tag, TagProcessor func);
 
   void readFileList(XmlReader &reader, FileDescriptorList &fileList);
+  void readDependencyPattern(XmlReader &reader, DependencyPattern &pattern);
+  void readDependencyPatternList(XmlReader &reader, DependencyPatternList &patterns);
+  void readDependencyPluginType(XmlReader &reader, PluginTypeInfo &info);
   void readPluginType(XmlReader &reader, Plugin &plugin);
-  void readConditionFlags(XmlReader &reader, Plugin &plugin);
+  void readConditionFlagList(XmlReader &reader, ConditionFlagList &condflags);
   FomodInstallerDialog::Plugin readPlugin(XmlReader &reader);
-  void readPlugins(XmlReader &reader, GroupType groupType, QLayout *layout);
+  void readPluginList(XmlReader &reader, GroupType groupType, QLayout *layout);
   void readGroup(XmlReader &reader, QLayout *layout);
-  void readGroups(XmlReader &reader, QLayout *layout);
-  void readVisible(XmlReader &reader, QVariantList &conditions, ConditionOperator &op);
-  QGroupBox *readInstallerStep(XmlReader &reader);
-  ConditionalInstall readConditionalPattern(XmlReader &reader);
-  void readConditionalDependency(XmlReader &reader, SubCondition &conditional);
-  void readConditionalFileInstalls(XmlReader &reader);
-  void readInstallerSteps(XmlReader &reader);
-  void readModuleTitle(XmlReader &reader);
+  void readGroupList(XmlReader &reader, QLayout *layout);
+  QGroupBox *readInstallStep(XmlReader &reader);
+  void readCompositeDependency(XmlReader &reader, SubCondition &conditional);
+  ConditionalInstall readConditionalInstallPattern(XmlReader &reader);
+  void readConditionalFilePatternList(XmlReader &reader);
+  void readConditionalFileInstallList(XmlReader &reader);
+  void readStepList(XmlReader &reader);
   void readModuleConfiguration(XmlReader &reader);
   void parseModuleConfig(XmlReader &data);
   void highlightControl(QAbstractButton *button);
 
   bool testCondition(int maxIndex, const QString &flag, const QString &value) const;
   virtual bool testCondition(int maxIndex, const ValueCondition *condition) const;
+  virtual bool testCondition(int maxIndex, const ConditionFlag *condition) const;
   virtual bool testCondition(int maxIndex, const SubCondition *condition) const;
   virtual bool testCondition(int maxIndex, const FileCondition *condition) const;
   bool testVisible(int pageIndex) const;
