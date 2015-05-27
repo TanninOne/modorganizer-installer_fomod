@@ -339,6 +339,7 @@ private:
 
   FileDescriptorList m_RequiredFiles;
   std::vector<ConditionalInstall> m_ConditionalInstalls;
+  std::vector<bool> m_PageVisible;
 
   mutable std::map<QString, QString> m_ConditionCache;
   mutable std::set<QString> m_ConditionsUnset;

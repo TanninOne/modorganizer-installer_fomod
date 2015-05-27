@@ -503,6 +503,12 @@ DirectoryTree *FomodInstallerDialog::updateTree(DirectoryTree *tree)
       }
     }
   }
+/**/qDebug() << "Count is " <<  ui->stepsStack->count() << " vs " << m_PageVisible.size();
+  /**/std::ostringstream s;
+  for (std::size_t i = 0; i < m_PageVisible.size(); ++i) {
+    if (m_PageVisible[i]) s<< " " << i;
+  }
+  qDebug() << s.str().c_str();
 
   // enable all user-enabled choices
   for (int i = 0; i < ui->stepsStack->count(); ++i) {
@@ -1065,6 +1071,7 @@ void FomodInstallerDialog::readStepList(XmlReader &reader)
 
 void FomodInstallerDialog::readCompositeDependency(XmlReader &reader, SubCondition &conditional)
 {
+  conditional.m_Operator = OP_AND;
   QStringRef dependencyOperator = reader.attributes().value("operator");
   if (dependencyOperator == "And") {
     conditional.m_Operator = OP_AND;
@@ -1082,12 +1089,13 @@ void FomodInstallerDialog::readCompositeDependency(XmlReader &reader, SubConditi
       conditional.m_Conditions.push_back(new ValueCondition(reader.attributes().value("flag").toString(),
                                                             reader.attributes().value("value").toString()));
       reader.finishedElement();
+    // else if gameDependency
+    // else if fommDependency
     } else if (reader.name() == "dependencies") {
       SubCondition *nested = new SubCondition();
       readCompositeDependency(reader, *nested);
       conditional.m_Conditions.push_back(nested);
     } else {
-      //also gameDependency, fommDependency (before dependencies)
       reader.unexpected();
     }
   }
@@ -1141,10 +1149,11 @@ void FomodInstallerDialog::readModuleConfiguration(XmlReader &reader)
 {
   //sequence:
   //  modulename
-  //  optional - moduleimage
-  //  optional - requiredinstallfiles
-  //  optional - installsteps
-  //  optional - conditionalfileinstalls
+  //  optional - moduleImage
+  //  optional - moduleDependencies
+  //  optional - requiredInstallFiles
+  //  optional - installSteps
+  //  optional - conditionalFileInstalls
   QString const self(reader.name().toString());
   while (reader.getNextElement(self)) {
     if (reader.name() == "moduleName") {
@@ -1182,6 +1191,7 @@ void FomodInstallerDialog::parseModuleConfig(XmlReader &reader)
   if (reader.hasError()) {
     throw XmlParseError(QString("%1 in line %2").arg(reader.errorString()).arg(reader.lineNumber()));
   }
+  //FIXME It might be possible for the first page to be inactive?
   activateCurrentPage();
 }
 
@@ -1220,6 +1230,12 @@ void FomodInstallerDialog::activateCurrentPage()
   if (choices.count() > 0) {
     highlightControl(choices.at(0));
   }
+  m_PageVisible.push_back(true);
+  /**/std::ostringstream s;
+  for (std::size_t i = 0; i < m_PageVisible.size(); ++i) {
+    if (m_PageVisible[i]) s<< " " << i;
+  }
+  qDebug() << "Pages visible: " << s.str().c_str();
   updateNextbtnText();
 }
 
@@ -1271,6 +1287,9 @@ bool FomodInstallerDialog::testCondition(int maxIndex, const QString &flag, cons
 
 bool FomodInstallerDialog::testVisible(int pageIndex) const
 {
+  if (pageIndex < m_PageVisible.size()) {
+    return m_PageVisible[pageIndex];
+  }
   QWidget *page = ui->stepsStack->widget(pageIndex);
   QVariant subcond = page->property("conditional");
   if (subcond.isValid()) {
@@ -1294,6 +1313,7 @@ bool FomodInstallerDialog::nextPage()
       ui->stepsStack->currentWidget()->setProperty("previous", oldIndex);
       return true;
     }
+    m_PageVisible.push_back(false);
     ++index;
   }
   // no more visible pages -> install
@@ -1313,7 +1333,11 @@ void FomodInstallerDialog::updateNextbtnText()
   //note this can change depending on what buttons you click here.
 
   m_CacheConditions = false;
-  ON_BLOCK_EXIT([&] () { m_CacheConditions = true; });
+  auto old_PageVisible = m_PageVisible;
+  ON_BLOCK_EXIT([&] () {
+    m_CacheConditions = true;
+    m_PageVisible = old_PageVisible;
+  });
 
   bool isLast = true;
   for (int index = ui->stepsStack->currentIndex() + 1;
@@ -1322,6 +1346,7 @@ void FomodInstallerDialog::updateNextbtnText()
       isLast = false;
       break;
     }
+    m_PageVisible.push_back(false);
   }
 
   ui->nextBtn->setText(isLast ? tr("Install") : tr("Next"));
@@ -1333,7 +1358,6 @@ void FomodInstallerDialog::on_nextBtn_clicked()
     this->accept();
   } else {
     if (nextPage()) {
-      updateNextbtnText();
       ui->prevBtn->setEnabled(true);
       activateCurrentPage();
     } else {
@@ -1354,6 +1378,7 @@ void FomodInstallerDialog::on_prevBtn_clicked()
     }
     ui->stepsStack->setCurrentIndex(previousIndex);
     m_ConditionCache.clear();
+    m_PageVisible.resize(previousIndex);
     ui->nextBtn->setText(tr("Next"));
   }
   if (ui->stepsStack->currentIndex() == 0) {
