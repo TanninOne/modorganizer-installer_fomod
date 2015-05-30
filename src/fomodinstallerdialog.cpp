@@ -1066,12 +1066,15 @@ void FomodInstallerDialog::readStepList(XmlReader &reader)
 void FomodInstallerDialog::readCompositeDependency(XmlReader &reader, SubCondition &conditional)
 {
   conditional.m_Operator = OP_AND;
-  QStringRef dependencyOperator = reader.attributes().value("operator");
-  if (dependencyOperator == "And") {
-    conditional.m_Operator = OP_AND;
-  } else if (dependencyOperator == "Or") {
-    conditional.m_Operator = OP_OR;
-  } // otherwise operator is not set (which we can ignore) or invalid (which we should report actually)
+  if (reader.attributes().hasAttribute("operator")) {
+    QStringRef dependencyOperator = reader.attributes().value("operator");
+    if (dependencyOperator == "Or") {
+      conditional.m_Operator = OP_OR;
+    }
+    else if (dependencyOperator != "And") {
+      qWarning() << "Expected 'and' or 'or' at line " << reader.lineNumber() << ", got " << dependencyOperator;
+    }
+  }
 
   QString const self = reader.name().toString();
   while (reader.getNextElement(self)) {
@@ -1085,6 +1088,7 @@ void FomodInstallerDialog::readCompositeDependency(XmlReader &reader, SubConditi
       reader.finishedElement();
     // FIXME else if gameDependency
     // FIXME else if fommDependency
+    // FIXME else if foseDependency
     } else if (reader.name() == "dependencies") {
       SubCondition *nested = new SubCondition();
       readCompositeDependency(reader, *nested);
@@ -1092,6 +1096,9 @@ void FomodInstallerDialog::readCompositeDependency(XmlReader &reader, SubConditi
     } else {
       reader.unexpected();
     }
+  }
+  if (conditional.m_Conditions.size() == 0) {
+    qWarning() << "Empty conditional found at line " << reader.lineNumber();
   }
 }
 
