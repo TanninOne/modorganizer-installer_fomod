@@ -32,7 +32,7 @@ QString InstallerFomod::name() const
 
 QString InstallerFomod::author() const
 {
-  return "Tannin";
+  return "Tannin & thosrtanner";
 }
 
 QString InstallerFomod::description() const
@@ -42,7 +42,7 @@ QString InstallerFomod::description() const
 
 VersionInfo InstallerFomod::version() const
 {
-  return VersionInfo(1, 5, 2, VersionInfo::RELEASE_FINAL);
+  return VersionInfo(1, 5, 3, VersionInfo::RELEASE_FINAL);
 }
 
 bool InstallerFomod::isActive() const

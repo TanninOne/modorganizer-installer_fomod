@@ -1250,7 +1250,7 @@ bool FomodInstallerDialog::testCondition(int maxIndex, const QString &flag, cons
 
 bool FomodInstallerDialog::testVisible(int pageIndex) const
 {
-  if (pageIndex < m_PageVisible.size()) {
+  if (pageIndex < static_cast<int>(m_PageVisible.size())) {
     return m_PageVisible[pageIndex];
   }
   QWidget *page = ui->stepsStack->widget(pageIndex);
