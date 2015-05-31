@@ -755,14 +755,14 @@ void FomodInstallerDialog::readPluginType(XmlReader &reader, Plugin &plugin)
 {
   //Have a choice here of precisely one of 'type' or 'dependencytype', so this is
   //not strictly necessary
-  plugin.m_PluginType.m_DefaultType = TYPE_OPTIONAL;
+  plugin.m_PluginTypeInfo.m_DefaultType = TYPE_OPTIONAL;
   QString const self(reader.name().toString());
   while (reader.getNextElement(self)) {
     if (reader.name() == "type") {
-      plugin.m_PluginType.m_DefaultType = getPluginType(reader.attributes().value("name").toString());
+      plugin.m_PluginTypeInfo.m_DefaultType = getPluginType(reader.attributes().value("name").toString());
       reader.finishedElement();
     } else if (reader.name() == "dependencyType") {
-      readDependencyPluginType(reader, plugin.m_PluginType);
+      readDependencyPluginType(reader, plugin.m_PluginTypeInfo);
     } else {
       reader.unexpected();
     }
@@ -825,15 +825,11 @@ FomodInstallerDialog::Plugin FomodInstallerDialog::readPlugin(XmlReader &reader)
 }
 
 
-FomodInstallerDialog::PluginType FomodInstallerDialog::getPluginDependencyType(const PluginTypeInfo &info) const
+FomodInstallerDialog::PluginType FomodInstallerDialog::getPluginDependencyType(int page, const PluginTypeInfo &info) const
 {
   if (info.m_DependencyPatterns.size() != 0) {
-    //FIXME: I probably shouldn't do this till I display the screen, as this
-    //could have value conditions and the value might be set/changed as we go
-    //through screens.
-    //Hacking around for now
     for (DependencyPattern const &pattern : info.m_DependencyPatterns) {
-      if (testCondition(/*maxindex*/1, &pattern.condition)) {
+      if (testCondition(page, &pattern.condition)) {
           return pattern.type;
       }
     }
@@ -845,8 +841,6 @@ void FomodInstallerDialog::readPluginList(XmlReader &reader, GroupType groupType
 {
   ItemOrder pluginOrder = reader.attributes().hasAttribute("order") ? getItemOrder(reader.attributes().value("order").toString())
                                                                     : ORDER_ASCENDING;
-  bool maySelectMore = true;
-  bool mustSelectOne = groupType == TYPE_SELECTATMOSTONE || groupType == TYPE_SELECTEXACTLYONE;
 
   std::vector<QAbstractButton*> controls;
 
@@ -875,37 +869,8 @@ void FomodInstallerDialog::readPluginList(XmlReader &reader, GroupType groupType
       newControl->setObjectName("choice");
       newControl->setAttribute(Qt::WA_Hover);
 
-      PluginType type = getPluginDependencyType(plugin.m_PluginType);
-      switch (type) {
-        case TYPE_REQUIRED: {
-          maySelectMore = false;
-          newControl->setChecked(true);
-          newControl->setEnabled(false);
-          newControl->setToolTip(tr("This component is required"));
-        } break;
-        case TYPE_RECOMMENDED: {
-          if (!mustSelectOne || maySelectMore) {
-            newControl->setChecked(true);
-            maySelectMore = false;
-          }
-          newControl->setToolTip(tr("It is recommended you enable this component"));
-        } break;
-        case TYPE_OPTIONAL: {
-          newControl->setToolTip(tr("Optional component"));
-        } break;
-        case TYPE_NOTUSABLE: {
-          newControl->setChecked(false);
-          newControl->setEnabled(false);
-          newControl->setToolTip(tr("This component is not usable in combination with other installed plugins"));
-        } break;
-        case TYPE_COULDBEUSABLE: {
-          newControl->setCheckable(true);
-          newControl->setIcon(QIcon(":/new/guiresources/warning_16"));
-          newControl->setToolTip(tr("You may be experiencing instability in combination with other installed plugins"));
-        } break;
-      }
-
-      newControl->setProperty("plugintype", type);
+      QVariant type(qVariantFromValue(plugin.m_PluginTypeInfo));
+      newControl->setProperty("plugintypeinfo", type);
       newControl->setProperty("screenshot", plugin.m_ImagePath);
       newControl->setProperty("description", plugin.m_Description);
       QVariantList fileList;
@@ -936,18 +901,13 @@ void FomodInstallerDialog::readPluginList(XmlReader &reader, GroupType groupType
     std::sort(controls.begin(), controls.end(), ControlsDescending);
   }
 
-  if (groupType == TYPE_SELECTEXACTLYONE && maySelectMore) {
-    controls[0]->setChecked(true);
-  }
   for (std::vector<QAbstractButton*>::const_iterator iter = controls.begin(); iter != controls.end(); ++iter) {
     layout->addWidget(*iter);
   }
 
   if (groupType == TYPE_SELECTATMOSTONE) {
     QRadioButton *newButton = new QRadioButton(tr("None"));
-    if (maySelectMore) {
-      newButton->setChecked(true);
-    }
+    newButton->setObjectName("none");
     layout->addWidget(newButton);
   }
 }
@@ -968,6 +928,8 @@ void FomodInstallerDialog::readGroup(XmlReader &reader, QLayout *layout)
 
   QVBoxLayout *groupLayout = new QVBoxLayout;
 
+  groupLayout->setProperty("groupType", qVariantFromValue(type));
+
   QString const self(reader.name().toString());
   while (reader.getNextElement(self)) {
     if (reader.name() == "plugins") {
@@ -976,7 +938,7 @@ void FomodInstallerDialog::readGroup(XmlReader &reader, QLayout *layout)
       reader.unexpected();
     }
   }
-
+  groupLayout->setObjectName("grouplayout");
   groupBox->setLayout(groupLayout);
   layout->addWidget(groupBox);
 }
@@ -1195,6 +1157,7 @@ void FomodInstallerDialog::parseModuleConfig(XmlReader &reader)
   }
   //FIXME It is be possible for the first page to be inactive in which case this is
   //going to go wrong.
+  displayCurrentPage();
   activateCurrentPage();
 }
 
@@ -1234,7 +1197,6 @@ void FomodInstallerDialog::activateCurrentPage()
     highlightControl(choices.at(0));
   }
   m_PageVisible.push_back(true);
-  updateNextbtnText();
 }
 
 bool FomodInstallerDialog::testCondition(int maxIndex, const QString &flag, const QString &value) const
@@ -1260,7 +1222,7 @@ bool FomodInstallerDialog::testCondition(int maxIndex, const QString &flag, cons
     if (testVisible(i)) {
       QWidget *page = ui->stepsStack->widget(i);
       QList<QAbstractButton*> choices = page->findChildren<QAbstractButton*>("choice");
-      foreach (QAbstractButton* choice, choices) {
+      for (QAbstractButton const *choice : choices) {
         if (choice->isChecked()) {
           QVariant temp = choice->property("conditionFlags");
           if (temp.isValid()) {
@@ -1353,6 +1315,82 @@ void FomodInstallerDialog::updateNextbtnText()
   ui->nextBtn->setText(isLast ? tr("Install") : tr("Next"));
 }
 
+void FomodInstallerDialog::displayCurrentPage()
+{
+  //Iterate over all buttons and set the tool tips as appropriate
+  int const page = ui->stepsStack->currentIndex();
+  for (QVBoxLayout *layout : ui->stepsStack->widget(page)->findChildren<QVBoxLayout*>("grouplayout")) {
+    GroupType const groupType(layout->property("groupType").value<GroupType>());
+    bool const mustSelectOne = groupType == TYPE_SELECTATMOSTONE || groupType == TYPE_SELECTEXACTLYONE;
+    bool maySelectMore = true;
+    //Create a list of buttons, as in order to attempt to keep users existing choices intact, we
+    //may need to cycle over this twice
+    QList<QAbstractButton *> controls;
+    QAbstractButton *none_button(nullptr);
+    for (int i = 0; i != layout->count(); ++i) {
+      if (QLayoutItem * const item = layout->itemAt(i)) {
+        QAbstractButton * const choice = dynamic_cast<QAbstractButton *>(item->widget());
+        if (choice != nullptr) {
+          if (choice->objectName() == "choice") {
+            controls.push_back(choice);
+          } else if (choice->objectName() == "none") {
+            none_button = choice;
+          }
+        }
+      }
+    }
+
+    //FIXME If we are displaying this for the 2nd time, we should do two passes,
+    //as currently if you have decided against a recommended option, gone back,
+    //and then gone forward, your selection will be lost.
+    //For tick boxes it require a bit of thought, because the first time we come
+    //in here, all tick boxes are clear, which is a valid condition. For radio
+    //buttons, that's not a valid condition so we can override. But we should
+    //possibly override anyway if the plugin types have changed since last time.
+
+    for (QAbstractButton * const control : controls) {
+      PluginTypeInfo const info = control->property("plugintypeinfo").value<PluginTypeInfo>();
+      PluginType const type = getPluginDependencyType(page, info);
+      switch (type) {
+        case TYPE_REQUIRED: {
+          control->setChecked(true);
+          control->setEnabled(false);
+          control->setToolTip(tr("This component is required"));
+        } break;
+        case TYPE_RECOMMENDED: {
+          if (!mustSelectOne || maySelectMore) {
+            control->setChecked(true);
+          }
+          control->setToolTip(tr("It is recommended you enable this component"));
+        } break;
+        case TYPE_OPTIONAL: {
+          control->setToolTip(tr("Optional component"));
+        } break;
+        case TYPE_NOTUSABLE: {
+          control->setChecked(false);
+          control->setEnabled(false);
+          control->setToolTip(tr("This component is not usable in combination with other installed plugins"));
+        } break;
+        case TYPE_COULDBEUSABLE: {
+          control->setCheckable(true);
+          control->setIcon(QIcon(":/new/guiresources/warning_16"));
+          control->setToolTip(tr("You may be experiencing instability in combination with other installed plugins"));
+        } break;
+      }
+      if (control->isChecked()) {
+        maySelectMore = false;
+      }
+    }
+    if (none_button != nullptr && maySelectMore) {
+      none_button->setChecked(true);
+    }
+    if (groupType == TYPE_SELECTEXACTLYONE && maySelectMore) {
+      controls[0]->setChecked(true);
+    }
+  }
+  updateNextbtnText();
+}
+
 void FomodInstallerDialog::on_nextBtn_clicked()
 {
   if (ui->stepsStack->currentIndex() == ui->stepsStack->count() - 1) {
@@ -1360,6 +1398,7 @@ void FomodInstallerDialog::on_nextBtn_clicked()
   } else {
     if (nextPage()) {
       ui->prevBtn->setEnabled(true);
+      displayCurrentPage();
       activateCurrentPage();
     } else {
       this->accept();

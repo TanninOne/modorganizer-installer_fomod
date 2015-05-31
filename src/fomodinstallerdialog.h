@@ -209,6 +209,8 @@ private:
     ORDER_EXPLICIT
   };
 
+//So I can make GroupType and PluginTypeInfo into QVariants
+public:
   enum GroupType {
     TYPE_SELECTATLEASTONE,
     TYPE_SELECTATMOSTONE,
@@ -230,9 +232,7 @@ private:
     SubCondition condition;
   };
 
-  typedef std::vector<FileDescriptor*> FileDescriptorList;
   typedef std::vector<DependencyPattern> DependencyPatternList;
-  typedef std::vector<ConditionFlag> ConditionFlagList;
 
   struct PluginTypeInfo
   {
@@ -240,11 +240,15 @@ private:
     DependencyPatternList m_DependencyPatterns;
   };
 
+private:
+  typedef std::vector<FileDescriptor*> FileDescriptorList;
+  typedef std::vector<ConditionFlag> ConditionFlagList;
+
   struct Plugin {
     QString m_Name;
     QString m_Description;
     QString m_ImagePath;
-    PluginTypeInfo m_PluginType;
+    PluginTypeInfo m_PluginTypeInfo;
     ConditionFlagList m_ConditionFlags;
     FileDescriptorList m_Files;
   };
@@ -276,7 +280,7 @@ private:
   static PluginType getPluginType(const QString &typeString);
   static bool byPriority(const FileDescriptor *LHS, const FileDescriptor *RHS);
 
-  PluginType getPluginDependencyType(PluginTypeInfo const &info) const;
+  PluginType getPluginDependencyType(int page, PluginTypeInfo const &info) const;
 
   bool copyFileIterator(MOBase::DirectoryTree *sourceTree, MOBase::DirectoryTree *destinationTree,
                         const FileDescriptor *descriptor,
@@ -326,6 +330,9 @@ private:
   //Set the 'next' button to display 'next' or 'install'
   void updateNextbtnText();
 
+  //Display the current page calculating all the button enables/disables
+  void displayCurrentPage();
+
 private:
 
   Ui::FomodInstallerDialog *ui;
@@ -356,5 +363,8 @@ private:
   int m_FileSystemItemSequence;
 
 };
+
+Q_DECLARE_METATYPE(FomodInstallerDialog::GroupType)
+Q_DECLARE_METATYPE(FomodInstallerDialog::PluginTypeInfo)
 
 #endif // FOMODINSTALLERDIALOG_H
