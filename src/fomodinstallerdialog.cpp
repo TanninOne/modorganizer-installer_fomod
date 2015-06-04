@@ -457,7 +457,7 @@ bool FomodInstallerDialog::testCondition(int maxIndex, const ConditionFlag *cond
 bool FomodInstallerDialog::testCondition(int maxIndex, const SubCondition *condition) const
 {
   ConditionOperator op = condition->m_Operator;
-  for (Condition const *cond : condition->m_Conditions) {
+  for (const Condition *cond : condition->m_Conditions) {
     bool conditionMatches = cond->test(maxIndex, this);
     if (op == OP_OR && conditionMatches) {
       return true;
@@ -508,7 +508,7 @@ DirectoryTree *FomodInstallerDialog::updateTree(DirectoryTree *tree)
   for (int i = 0; i < ui->stepsStack->count(); ++i) {
     if (testVisible(i)) {
       QList<QAbstractButton*> choices = ui->stepsStack->widget(i)->findChildren<QAbstractButton*>("choice");
-      foreach (QAbstractButton* choice, choices) {
+      for (QAbstractButton* choice : choices) {
         if (choice->isChecked()) {
           QVariantList fileList = choice->property("files").toList();
           foreach (QVariant fileVariant, fileList) {
@@ -525,7 +525,7 @@ DirectoryTree *FomodInstallerDialog::updateTree(DirectoryTree *tree)
   Leaves leaves;
   DirectoryTree::Overwrites overwrites;
 
-  foreach (const FileDescriptor *file, descriptorList) {
+  for (const FileDescriptor *file : descriptorList) {
     copyFileIterator(tree, newTree, file, &leaves, &overwrites);
   }
 
@@ -832,7 +832,7 @@ FomodInstallerDialog::PluginType FomodInstallerDialog::getPluginDependencyType(c
     //could have value conditions and the value might be set/changed as we go
     //through screens.
     //Hacking around for now
-    for (DependencyPattern const &pattern : info.m_DependencyPatterns) {
+    for (const DependencyPattern &pattern : info.m_DependencyPatterns) {
       if (testCondition(/*maxindex*/1, &pattern.condition)) {
           return pattern.type;
       }
@@ -874,7 +874,6 @@ void FomodInstallerDialog::readPluginList(XmlReader &reader, GroupType groupType
       }
       newControl->setObjectName("choice");
       newControl->setAttribute(Qt::WA_Hover);
-
       PluginType type = getPluginDependencyType(plugin.m_PluginType);
       switch (type) {
         case TYPE_REQUIRED: {
@@ -1253,7 +1252,7 @@ bool FomodInstallerDialog::testCondition(int maxIndex, const QString &flag, cons
     if (testVisible(i)) {
       QWidget *page = ui->stepsStack->widget(i);
       QList<QAbstractButton*> choices = page->findChildren<QAbstractButton*>("choice");
-      foreach (QAbstractButton* choice, choices) {
+      for (QAbstractButton* choice : choices) {
         if (choice->isChecked()) {
           QVariant temp = choice->property("conditionFlags");
           if (temp.isValid()) {
@@ -1283,6 +1282,9 @@ bool FomodInstallerDialog::testVisible(int pageIndex) const
 {
   if (pageIndex < static_cast<int>(m_PageVisible.size())) {
     return m_PageVisible[pageIndex];
+  }
+  if (pageIndex >= ui->stepsStack->count()) {
+    return false;
   }
   QWidget *page = ui->stepsStack->widget(pageIndex);
   QVariant subcond = page->property("conditional");
