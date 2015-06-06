@@ -279,24 +279,6 @@ int FomodInstallerDialog::getModID() const
   return m_ModID;
 }
 
-namespace {
-
-QString getNodePath(DirectoryTree::Node const *node)
-{
-  {
-    QString s;
-    if (node->getParent() != nullptr) {
-      s = getNodePath(node->getParent());
-      if (s != "") {
-        s += "/";
-      }
-    }
-    return s + node->getData().name;
-  }
-}
-
-}
-
 void FomodInstallerDialog::moveTree(DirectoryTree::Node *target, DirectoryTree::Node *source, DirectoryTree::Overwrites *overwrites)
 {
   for (DirectoryTree::const_node_iterator iter = source->nodesBegin(); iter != source->nodesEnd();) {
@@ -323,7 +305,7 @@ DirectoryTree::Node *FomodInstallerDialog::findNode(DirectoryTree::Node *node, c
     subPath = path.mid(0, pos);
   }
   for (DirectoryTree::const_node_iterator iter = node->nodesBegin(); iter != node->nodesEnd(); ++iter) {
-    if ((*iter)->getData().name.compare(subPath, Qt::CaseInsensitive) == 0) {
+    if ((*iter)->getData().name == subPath) {
       if (pos <= 0) {
         return *iter;
       } else {
@@ -381,7 +363,7 @@ void FomodInstallerDialog::copyLeaf(DirectoryTree::Node *sourceTree, const QStri
   bool found = false;
   for (DirectoryTree::const_leaf_reverse_iterator iter = sourceNode->leafsRBegin();
        iter != sourceNode->leafsREnd(); ++iter) {
-    if (iter->getName().compare(sourceName, Qt::CaseInsensitive) == 0) {
+    if (iter->getName() == sourceName) {
       FileTreeInformation temp = *iter;
       temp.setName(destinationName);
       destinationNode->addLeaf(temp, true, overwrites);
@@ -409,7 +391,9 @@ void dumpTree(DirectoryTree::Node *node, int indent)
 void FomodInstallerDialog::applyPriority(Leaves *leaves, DirectoryTree::Node *node, int priority)
 {
   for (DirectoryTree::leaf_iterator iter = node->leafsBegin(); iter != node->leafsEnd(); ++iter) {
-    LeafInfo info = { priority, getNodePath(node) + "/" + iter->getName() };
+    //QString l = iter->getFullPath();
+    //I should be able to get the full path of a leaf. somehow.
+    LeafInfo info = { priority, node->getFullPath() + "/" + iter->getName().toQString() };
     leaves->insert(std::make_pair(iter->getIndex(), info));
   }
   for (DirectoryTree::node_iterator iter = node->nodesBegin(); iter != node->nodesEnd(); ++iter) {
@@ -488,18 +472,16 @@ DirectoryTree *FomodInstallerDialog::updateTree(DirectoryTree *tree)
   FileDescriptorList descriptorList;
 
   // enable all required files
-  for (FileDescriptorList::iterator iter = m_RequiredFiles.begin(); iter != m_RequiredFiles.end(); ++iter) {
-    descriptorList.push_back(*iter);
+  for (FileDescriptor *file : m_RequiredFiles) {
+    descriptorList.push_back(file);
   }
 
   // enable all conditional file installs (files programatically selected by conditions instead of a user selection. usually dependencies)
-  for (std::vector<ConditionalInstall>::iterator installIter = m_ConditionalInstalls.begin();
-       installIter != m_ConditionalInstalls.end(); ++installIter) {
-    SubCondition *condition = &installIter->m_Condition;
+  for (ConditionalInstall &cond :  m_ConditionalInstalls) {
+    SubCondition *condition = &cond.m_Condition;
     if (condition->test(ui->stepsStack->count(), this)) {
-      for (FileDescriptorList::iterator fileIter = installIter->m_Files.begin();
-           fileIter != installIter->m_Files.end(); ++fileIter) {
-        descriptorList.push_back(*fileIter);
+      for (FileDescriptor *file : cond.m_Files) {
+        descriptorList.push_back(file);
       }
     }
   }
@@ -508,10 +490,10 @@ DirectoryTree *FomodInstallerDialog::updateTree(DirectoryTree *tree)
   for (int i = 0; i < ui->stepsStack->count(); ++i) {
     if (testVisible(i)) {
       QList<QAbstractButton*> choices = ui->stepsStack->widget(i)->findChildren<QAbstractButton*>("choice");
-      foreach (QAbstractButton* choice, choices) {
+      for (QAbstractButton* choice : choices) {
         if (choice->isChecked()) {
           QVariantList fileList = choice->property("files").toList();
-          foreach (QVariant fileVariant, fileList) {
+          for (QVariant fileVariant : fileList) {
             descriptorList.push_back(fileVariant.value<FileDescriptor*>());
           }
         }
@@ -525,7 +507,7 @@ DirectoryTree *FomodInstallerDialog::updateTree(DirectoryTree *tree)
   Leaves leaves;
   DirectoryTree::Overwrites overwrites;
 
-  foreach (const FileDescriptor *file, descriptorList) {
+  for (const FileDescriptor *file : descriptorList) {
     copyFileIterator(tree, newTree, file, &leaves, &overwrites);
   }
 

@@ -74,8 +74,8 @@ const DirectoryTree *InstallerFomod::findFomodDirectory(const DirectoryTree *tre
 {
   for (DirectoryTree::const_node_iterator iter = tree->nodesBegin();
        iter != tree->nodesEnd(); ++iter) {
-    const QString &dirName = (*iter)->getData().name;
-    if (dirName.compare("fomod", Qt::CaseInsensitive) == 0) {
+    const FileNameString &dirName = (*iter)->getData().name;
+    if (dirName == "fomod") {
       return *iter;
     }
   }
@@ -92,7 +92,7 @@ bool InstallerFomod::isArchiveSupported(const DirectoryTree &tree) const
   if (fomodDir != nullptr) {
     for (DirectoryTree::const_leaf_iterator fileIter = fomodDir->leafsBegin();
          fileIter != fomodDir->leafsEnd(); ++fileIter) {
-      if (fileIter->getName().compare("ModuleConfig.xml", Qt::CaseInsensitive) == 0) {
+      if (fileIter->getName() == "ModuleConfig.xml") {
         return true;
       }
     }
@@ -106,10 +106,10 @@ QString InstallerFomod::getFullPath(const DirectoryTree *tree, const FileTreeInf
   QString result;
   const DirectoryTree *current = tree;
   while (current != nullptr) {
-    result.prepend(current->getData().name + "/");
+    result.prepend(current->getData().name.toQString() + "/");
     current = current->getParent();
   }
-  result.append(file.getName());
+  result.append(file.getName().toQString());
   return result;
 }
 
@@ -117,10 +117,10 @@ QString InstallerFomod::getFullPath(const DirectoryTree *tree, const FileTreeInf
 void InstallerFomod::appendImageFiles(QStringList &result, DirectoryTree *tree)
 {
   for (auto iter = tree->leafsBegin(); iter != tree->leafsEnd(); ++iter) {
-    if ((iter->getName().endsWith(".png", Qt::CaseInsensitive)) ||
-        (iter->getName().endsWith(".jpg", Qt::CaseInsensitive)) ||
-        (iter->getName().endsWith(".gif", Qt::CaseInsensitive)) ||
-        (iter->getName().endsWith(".bmp", Qt::CaseInsensitive))) {
+    if ((iter->getName().endsWith(".png")) ||
+        (iter->getName().endsWith(".jpg")) ||
+        (iter->getName().endsWith(".gif")) ||
+        (iter->getName().endsWith(".bmp"))) {
       result.append(getFullPath(tree, *iter));
     }
   }
@@ -136,8 +136,8 @@ QStringList InstallerFomod::buildFomodTree(DirectoryTree &tree)
   QStringList result;
   const DirectoryTree *fomodTree = findFomodDirectory(&tree);
   for (auto iter = fomodTree->leafsBegin(); iter != fomodTree->leafsEnd(); ++iter) {
-    if ((iter->getName().compare("info.xml", Qt::CaseInsensitive) == 0) ||
-        (iter->getName().compare("ModuleConfig.xml", Qt::CaseInsensitive) == 0)) {
+    if ((iter->getName() == "info.xml") ||
+        (iter->getName() == "ModuleConfig.xml")) {
       result.append(getFullPath(fomodTree, *iter));
     }
   }
@@ -166,7 +166,7 @@ IPluginInstaller::EInstallResult InstallerFomod::install(GuessedValue<QString> &
     QString fomodPath;
     const DirectoryTree *current = fomodTree->getParent();
     while (current != nullptr) {
-      fomodPath.prepend(current->getData().name);
+      fomodPath.prepend(current->getData().name.toQString());
       current = current->getParent();
     }
     FomodInstallerDialog dialog(modName, fomodPath, std::bind(&InstallerFomod::fileState, this, std::placeholders::_1));
