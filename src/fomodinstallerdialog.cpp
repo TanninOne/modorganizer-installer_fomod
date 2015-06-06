@@ -441,7 +441,7 @@ bool FomodInstallerDialog::testCondition(int maxIndex, const ConditionFlag *cond
 bool FomodInstallerDialog::testCondition(int maxIndex, const SubCondition *condition) const
 {
   ConditionOperator op = condition->m_Operator;
-  for (Condition const *cond : condition->m_Conditions) {
+  for (const Condition *cond : condition->m_Conditions) {
     bool conditionMatches = cond->test(maxIndex, this);
     if (op == OP_OR && conditionMatches) {
       return true;
@@ -810,7 +810,7 @@ FomodInstallerDialog::Plugin FomodInstallerDialog::readPlugin(XmlReader &reader)
 FomodInstallerDialog::PluginType FomodInstallerDialog::getPluginDependencyType(int page, const PluginTypeInfo &info) const
 {
   if (info.m_DependencyPatterns.size() != 0) {
-    for (DependencyPattern const &pattern : info.m_DependencyPatterns) {
+    for (const DependencyPattern &pattern : info.m_DependencyPatterns) {
       if (testCondition(page, &pattern.condition)) {
           return pattern.type;
       }
@@ -850,7 +850,6 @@ void FomodInstallerDialog::readPluginList(XmlReader &reader, GroupType groupType
       }
       newControl->setObjectName("choice");
       newControl->setAttribute(Qt::WA_Hover);
-
       QVariant type(qVariantFromValue(plugin.m_PluginTypeInfo));
       newControl->setProperty("plugintypeinfo", type);
       newControl->setProperty("screenshot", plugin.m_ImagePath);
@@ -1234,6 +1233,9 @@ bool FomodInstallerDialog::testVisible(int pageIndex) const
 {
   if (pageIndex < static_cast<int>(m_PageVisible.size())) {
     return m_PageVisible[pageIndex];
+  }
+  if (pageIndex >= ui->stepsStack->count()) {
+    return false;
   }
   QWidget *page = ui->stepsStack->widget(pageIndex);
   QVariant subcond = page->property("conditional");
