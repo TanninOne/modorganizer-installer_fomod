@@ -391,9 +391,7 @@ void dumpTree(DirectoryTree::Node *node, int indent)
 void FomodInstallerDialog::applyPriority(Leaves *leaves, DirectoryTree::Node *node, int priority)
 {
   for (DirectoryTree::leaf_iterator iter = node->leafsBegin(); iter != node->leafsEnd(); ++iter) {
-    //QString l = iter->getFullPath();
-    //I should be able to get the full path of a leaf. somehow.
-    LeafInfo info = { priority, node->getFullPath() + "/" + iter->getName().toQString() };
+    LeafInfo info = { priority, node->getFullPath(&*iter) };
     leaves->insert(std::make_pair(iter->getIndex(), info));
   }
   for (DirectoryTree::node_iterator iter = node->nodesBegin(); iter != node->nodesEnd(); ++iter) {

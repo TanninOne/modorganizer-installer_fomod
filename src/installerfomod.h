@@ -55,7 +55,6 @@ private:
   QStringList buildFomodTree(MOBase::DirectoryTree &tree);
 
   void appendImageFiles(QStringList &result, MOBase::DirectoryTree *tree);
-  QString getFullPath(const MOBase::DirectoryTree *tree, const MOBase::FileTreeInformation &file);
   MOBase::IPluginList::PluginStates fileState(const QString &fileName);
 
 private:
