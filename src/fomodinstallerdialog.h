@@ -99,7 +99,7 @@ public:
 Q_DECLARE_METATYPE(FileCondition)
 
 class SubCondition : public Condition {
- public:
+public:
   virtual bool test(int maxIndex, const IConditionTester *tester) const { return tester->testCondition(maxIndex, this); }
   ConditionOperator m_Operator;
   std::vector<Condition*> m_Conditions;

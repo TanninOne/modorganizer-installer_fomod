@@ -1011,10 +1011,9 @@ void FomodInstallerDialog::readCompositeDependency(XmlReader &reader, SubConditi
     QStringRef dependencyOperator = reader.attributes().value("operator");
     if (dependencyOperator == "Or") {
       conditional.m_Operator = OP_OR;
-    }
-    else if (dependencyOperator != "And") {
+    } else if (dependencyOperator != "And") {
       qWarning() << "Expected 'and' or 'or' at line " << reader.lineNumber() << ", got " << dependencyOperator;
-    }
+    } // OP_AND is the default, set at the beginning of the function
   }
 
   QString const self = reader.name().toString();
