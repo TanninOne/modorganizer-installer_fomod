@@ -403,7 +403,7 @@ bool FomodInstallerDialog::copyFileIterator(DirectoryTree *sourceTree, Directory
                                             const FileDescriptor *descriptor,
                                             Leaves *leaves, DirectoryTree::Overwrites *overwrites)
 {
-  QString source = (m_FomodPath.length() != 0) ? (m_FomodPath + "/" + descriptor->m_Source)
+  QString source = (m_FomodPath.length() != 0) ? (m_FomodPath + "\\" + descriptor->m_Source)
                                                : descriptor->m_Source;
   int pri = descriptor->m_Priority;
   QString destination = descriptor->m_Destination;
@@ -1104,8 +1104,8 @@ void FomodInstallerDialog::readModuleConfiguration(XmlReader &reader)
       //do something useful with the attributes of this
       reader.finishedElement();
     } else if (reader.name() == "moduleDependencies") {
-      QString s = reader.readElementText(XmlReader::IncludeChildElements);
-      qDebug() << " module dependencies " << s;
+      // skip the content of the inside moduleDependencies as we can't handle it
+      reader.readElementText(XmlReader::IncludeChildElements);
       //FIXME do something useful with the condition dependencies
       //readCompositeDependency
       qWarning() << "Module dependencies not yet implemented";
