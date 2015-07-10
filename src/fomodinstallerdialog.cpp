@@ -1301,9 +1301,6 @@ void FomodInstallerDialog::displayCurrentPage()
   //Iterate over all buttons and set the tool tips as appropriate
   int const page = ui->stepsStack->currentIndex();
   for (QVBoxLayout *layout : ui->stepsStack->widget(page)->findChildren<QVBoxLayout*>("grouplayout")) {
-    GroupType const groupType(layout->property("groupType").value<GroupType>());
-    bool const mustSelectOne = groupType == TYPE_SELECTATMOSTONE || groupType == TYPE_SELECTEXACTLYONE;
-    bool maySelectMore = true;
     //Create a list of buttons, as in order to attempt to keep users existing choices intact, we
     //may need to cycle over this twice
     QList<QAbstractButton *> controls;
@@ -1329,9 +1326,14 @@ void FomodInstallerDialog::displayCurrentPage()
     //buttons, that's not a valid condition so we can override. But we should
     //possibly override anyway if the plugin types have changed since last time.
 
+    GroupType const groupType(layout->property("groupType").value<GroupType>());
+    bool const mustSelectOne = groupType == TYPE_SELECTATMOSTONE || groupType == TYPE_SELECTEXACTLYONE;
+    bool maySelectMore = true;
+
     for (QAbstractButton * const control : controls) {
       PluginTypeInfo const info = control->property("plugintypeinfo").value<PluginTypeInfo>();
       PluginType const type = getPluginDependencyType(page, info);
+      control->setEnabled(true);
       switch (type) {
         case TYPE_REQUIRED: {
           control->setChecked(true);
@@ -1339,7 +1341,7 @@ void FomodInstallerDialog::displayCurrentPage()
           control->setToolTip(tr("This component is required"));
         } break;
         case TYPE_RECOMMENDED: {
-          if (!mustSelectOne || maySelectMore) {
+          if (maySelectMore || !mustSelectOne) {
             control->setChecked(true);
           }
           control->setToolTip(tr("It is recommended you enable this component"));
