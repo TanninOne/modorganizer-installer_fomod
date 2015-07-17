@@ -296,7 +296,7 @@ private:
   void readPluginType(XmlReader &reader, Plugin &plugin);
   void readConditionFlagList(XmlReader &reader, ConditionFlagList &condflags);
   FomodInstallerDialog::Plugin readPlugin(XmlReader &reader);
-  void readPluginList(XmlReader &reader, GroupType groupType, QLayout *layout);
+  void readPluginList(XmlReader &reader, QString const &groupName, GroupType &groupType, QLayout *layout);
   void readGroup(XmlReader &reader, QLayout *layout);
   void readGroupList(XmlReader &reader, QLayout *layout);
   QGroupBox *readInstallStep(XmlReader &reader);

@@ -475,7 +475,7 @@ DirectoryTree *FomodInstallerDialog::updateTree(DirectoryTree *tree)
   }
 
   // enable all conditional file installs (files programatically selected by conditions instead of a user selection. usually dependencies)
-  for (ConditionalInstall &cond :  m_ConditionalInstalls) {
+  for (ConditionalInstall &cond : m_ConditionalInstalls) {
     SubCondition *condition = &cond.m_Condition;
     if (condition->test(ui->stepsStack->count(), this)) {
       for (FileDescriptor *file : cond.m_Files) {
@@ -817,61 +817,93 @@ FomodInstallerDialog::PluginType FomodInstallerDialog::getPluginDependencyType(i
   return info.m_DefaultType;
 }
 
-void FomodInstallerDialog::readPluginList(XmlReader &reader, GroupType groupType, QLayout *layout)
+void FomodInstallerDialog::readPluginList(XmlReader &reader, QString const &groupName, GroupType &groupType, QLayout *layout)
 {
   ItemOrder pluginOrder = reader.attributes().hasAttribute("order") ? getItemOrder(reader.attributes().value("order").toString())
                                                                     : ORDER_ASCENDING;
 
-  std::vector<QAbstractButton*> controls;
-
+  // Read in all the plugins so we can check if the author is using "atmost" or "exactly",
+  // and correct as appropriate
+  std::vector<Plugin> plugins;
   QString const self(reader.name().toString());
   while (reader.getNextElement(self)) {
     if (reader.name() == "plugin") {
-      Plugin plugin = readPlugin(reader);
-      QAbstractButton *newControl = nullptr;
-      switch (groupType) {
-        case TYPE_SELECTATLEASTONE:
-        case TYPE_SELECTANY: {
-          newControl = new QCheckBox(plugin.m_Name);
-        } break;
-        case TYPE_SELECTATMOSTONE: {
-          newControl = new QRadioButton(plugin.m_Name);
-        } break;
-        case TYPE_SELECTEXACTLYONE: {
-          newControl = new QRadioButton(plugin.m_Name);
-        } break;
-        case TYPE_SELECTALL: {
-          newControl = new QCheckBox(plugin.m_Name);
-          newControl->setChecked(true);
-          newControl->setEnabled(false);
-        } break;
-      }
-      newControl->setObjectName("choice");
-      newControl->setAttribute(Qt::WA_Hover);
-      QVariant type(qVariantFromValue(plugin.m_PluginTypeInfo));
-      newControl->setProperty("plugintypeinfo", type);
-      newControl->setProperty("screenshot", plugin.m_ImagePath);
-      newControl->setProperty("description", plugin.m_Description);
-      QVariantList fileList;
-      for (FileDescriptorList::iterator iter = plugin.m_Files.begin(); iter != plugin.m_Files.end(); ++iter) {
-        fileList.append(qVariantFromValue(*iter));
-      }
-      newControl->setProperty("files", fileList);
-      QVariantList conditionFlags;
-      for (ConditionFlag const &conditionFlag : plugin.m_ConditionFlags) {
-        if (! conditionFlag.m_Name.isEmpty()) {
-          conditionFlags.append(qVariantFromValue(conditionFlag));
-        }
-      }
-      newControl->setProperty("conditionFlags", conditionFlags);
-      newControl->installEventFilter(this);
-      //We need somehow to check the 'toggled' signal. how do I do that
-      //void QAbstractButton::clicked ( bool checked ) [signal]
-      connect(newControl, SIGNAL(clicked()), this, SLOT(widgetButtonClicked()));
-      controls.push_back(newControl);
+      plugins.push_back(readPlugin(reader));
     } else {
       reader.unexpected();
     }
+  }
+
+  std::vector<QAbstractButton*> controls;
+  //This is somewhat of a hack. If the author has specified only 1 plugin and the
+  //group type is SELECTATLEASTONE or SELECTEXACTLYONE, then that plugin has to
+  //be selected. A note: This doesn't check for if somebody has defined a single
+  //plugin group with one of the above types, and then made the plugin unselectable.
+  //They deserve what they get.
+  //Similarly, if they've specfied SELECTATMOSTONE, we might as well give them
+  //a checkbox
+  if (plugins.size() == 1) {
+    switch (groupType) {
+      case TYPE_SELECTATLEASTONE: {
+        qWarning() << "Plugin " << plugins[0].m_Name << " is the only plugin specified in group " <<
+                        groupName << " which requires selection of at least one plugin";
+        groupType = TYPE_SELECTALL;
+      } break;
+      case TYPE_SELECTEXACTLYONE: {
+        qWarning() << "Plugin " << plugins[0].m_Name << " is the only plugin specified in group " <<
+                        groupName << " which requires selection of exactly one plugin";
+        groupType = TYPE_SELECTALL;
+      } break;
+      case TYPE_SELECTATMOSTONE: {
+        qWarning() << "Plugin " << plugins[0].m_Name << " is the only plugin specified in group " <<
+                        groupName << " which permits selection of at most one plugin";
+        groupType = TYPE_SELECTANY;
+      } break;
+    }
+  }
+
+  for (Plugin const &plugin : plugins) {
+    QAbstractButton *newControl = nullptr;
+    switch (groupType) {
+      case TYPE_SELECTATLEASTONE:
+      case TYPE_SELECTANY: {
+        newControl = new QCheckBox(plugin.m_Name);
+      } break;
+      case TYPE_SELECTATMOSTONE:
+      case TYPE_SELECTEXACTLYONE: {
+          newControl = new QRadioButton(plugin.m_Name);
+      } break;
+      case TYPE_SELECTALL: {
+        newControl = new QCheckBox(plugin.m_Name);
+        newControl->setChecked(true);
+        newControl->setEnabled(false);
+        newControl->setToolTip(tr("All components in this group are required"));
+      } break;
+    }
+    newControl->setObjectName("choice");
+    newControl->setAttribute(Qt::WA_Hover);
+    QVariant type(qVariantFromValue(plugin.m_PluginTypeInfo));
+    newControl->setProperty("plugintypeinfo", type);
+    newControl->setProperty("screenshot", plugin.m_ImagePath);
+    newControl->setProperty("description", plugin.m_Description);
+    QVariantList fileList;
+    //This looks horrible...
+    for (FileDescriptor * const &descriptor : plugin.m_Files) {
+      fileList.append(qVariantFromValue(descriptor));
+    }
+    newControl->setProperty("files", fileList);
+    QVariantList conditionFlags;
+    for (ConditionFlag const &conditionFlag : plugin.m_ConditionFlags) {
+      if (! conditionFlag.m_Name.isEmpty()) {
+        conditionFlags.append(qVariantFromValue(conditionFlag));
+      }
+    }
+    newControl->setProperty("conditionFlags", conditionFlags);
+    newControl->installEventFilter(this);
+    //We need somehow to check the 'toggled' signal. how do I do that
+    //void QAbstractButton::clicked ( bool checked ) [signal]
+    connect(newControl, SIGNAL(clicked()), this, SLOT(widgetButtonClicked()));
+    controls.push_back(newControl);
   }
 
   if (pluginOrder == ORDER_ASCENDING) {
@@ -880,8 +912,8 @@ void FomodInstallerDialog::readPluginList(XmlReader &reader, GroupType groupType
     std::sort(controls.begin(), controls.end(), ControlsDescending);
   }
 
-  for (std::vector<QAbstractButton*>::const_iterator iter = controls.begin(); iter != controls.end(); ++iter) {
-    layout->addWidget(*iter);
+  for (QAbstractButton * const control : controls) {
+    layout->addWidget(control);
   }
 
   if (groupType == TYPE_SELECTATMOSTONE) {
@@ -898,27 +930,28 @@ void FomodInstallerDialog::readGroup(XmlReader &reader, QLayout *layout)
   QString name = reader.attributes().value("name").toString();
   GroupType type = getGroupType(reader.attributes().value("type").toString());
 
+  QGroupBox *groupBox = new QGroupBox(name);
+
+  QVBoxLayout *groupLayout = new QVBoxLayout;
+
+  QString const self(reader.name().toString());
+  while (reader.getNextElement(self)) {
+    if (reader.name() == "plugins") {
+      readPluginList(reader, name, type, groupLayout);
+    } else {
+      reader.unexpected();
+    }
+  }
+
+  groupLayout->setProperty("groupType", qVariantFromValue(type));
+  groupLayout->setObjectName("grouplayout");
+  groupBox->setLayout(groupLayout);
+
   if (type == TYPE_SELECTATLEASTONE) {
     QLabel *label = new QLabel(tr("Select one or more of these options:"));
     layout->addWidget(label);
   }
 
-  QGroupBox *groupBox = new QGroupBox(name);
-
-  QVBoxLayout *groupLayout = new QVBoxLayout;
-
-  groupLayout->setProperty("groupType", qVariantFromValue(type));
-
-  QString const self(reader.name().toString());
-  while (reader.getNextElement(self)) {
-    if (reader.name() == "plugins") {
-      readPluginList(reader, type, groupLayout);
-    } else {
-      reader.unexpected();
-    }
-  }
-  groupLayout->setObjectName("grouplayout");
-  groupBox->setLayout(groupLayout);
   layout->addWidget(groupBox);
 }
 
@@ -1321,54 +1354,55 @@ void FomodInstallerDialog::displayCurrentPage()
     //FIXME If we are displaying this for the 2nd time, we should do two passes,
     //as currently if you have decided against a recommended option, gone back,
     //and then gone forward, your selection will be lost.
-    //For tick boxes it require a bit of thought, because the first time we come
+    //For tick boxes it requires a bit of thought, because the first time we come
     //in here, all tick boxes are clear, which is a valid condition. For radio
     //buttons, that's not a valid condition so we can override. But we should
     //possibly override anyway if the plugin types have changed since last time.
+    GroupType groupType(layout->property("groupType").value<GroupType>());
+    if (groupType != TYPE_SELECTALL) {
+      bool const mustSelectOne = groupType == TYPE_SELECTATMOSTONE || groupType == TYPE_SELECTEXACTLYONE;
+      bool maySelectMore = true;
 
-    GroupType const groupType(layout->property("groupType").value<GroupType>());
-    bool const mustSelectOne = groupType == TYPE_SELECTATMOSTONE || groupType == TYPE_SELECTEXACTLYONE;
-    bool maySelectMore = true;
-
-    for (QAbstractButton * const control : controls) {
-      PluginTypeInfo const info = control->property("plugintypeinfo").value<PluginTypeInfo>();
-      PluginType const type = getPluginDependencyType(page, info);
-      control->setEnabled(true);
-      switch (type) {
-        case TYPE_REQUIRED: {
-          control->setChecked(true);
-          control->setEnabled(false);
-          control->setToolTip(tr("This component is required"));
-        } break;
-        case TYPE_RECOMMENDED: {
-          if (maySelectMore || !mustSelectOne) {
+      for (QAbstractButton * const control : controls) {
+        PluginTypeInfo const info = control->property("plugintypeinfo").value<PluginTypeInfo>();
+        PluginType const type = getPluginDependencyType(page, info);
+        control->setEnabled(true);
+        switch (type) {
+          case TYPE_REQUIRED: {
             control->setChecked(true);
-          }
-          control->setToolTip(tr("It is recommended you enable this component"));
-        } break;
-        case TYPE_OPTIONAL: {
-          control->setToolTip(tr("Optional component"));
-        } break;
-        case TYPE_NOTUSABLE: {
-          control->setChecked(false);
-          control->setEnabled(false);
-          control->setToolTip(tr("This component is not usable in combination with other installed plugins"));
-        } break;
-        case TYPE_COULDBEUSABLE: {
-          control->setCheckable(true);
-          control->setIcon(QIcon(":/new/guiresources/warning_16"));
-          control->setToolTip(tr("You may be experiencing instability in combination with other installed plugins"));
-        } break;
+            control->setEnabled(false);
+            control->setToolTip(tr("This component is required"));
+          } break;
+          case TYPE_RECOMMENDED: {
+            if (maySelectMore || !mustSelectOne) {
+              control->setChecked(true);
+            }
+            control->setToolTip(tr("It is recommended you enable this component"));
+          } break;
+          case TYPE_OPTIONAL: {
+            control->setToolTip(tr("Optional component"));
+          } break;
+          case TYPE_NOTUSABLE: {
+            control->setChecked(false);
+            control->setEnabled(false);
+            control->setToolTip(tr("This component is not usable in combination with other installed plugins"));
+          } break;
+          case TYPE_COULDBEUSABLE: {
+            control->setCheckable(true);
+            control->setIcon(QIcon(":/new/guiresources/warning_16"));
+            control->setToolTip(tr("You may be experiencing instability in combination with other installed plugins"));
+          } break;
+        }
+        if (control->isChecked()) {
+          maySelectMore = false;
+        }
       }
-      if (control->isChecked()) {
-        maySelectMore = false;
+      if (none_button != nullptr && maySelectMore) {
+        none_button->setChecked(true);
       }
-    }
-    if (none_button != nullptr && maySelectMore) {
-      none_button->setChecked(true);
-    }
-    if (groupType == TYPE_SELECTEXACTLYONE && maySelectMore) {
-      controls[0]->setChecked(true);
+      if (groupType == TYPE_SELECTEXACTLYONE && maySelectMore) {
+        controls[0]->setChecked(true);
+      }
     }
   }
   updateNextbtnText();
