@@ -1360,7 +1360,8 @@ void FomodInstallerDialog::displayCurrentPage()
     //possibly override anyway if the plugin types have changed since last time.
     GroupType groupType(layout->property("groupType").value<GroupType>());
     if (groupType != TYPE_SELECTALL) {
-      bool const mustSelectOne = groupType == TYPE_SELECTATMOSTONE || groupType == TYPE_SELECTEXACTLYONE;
+      bool const mustSelectOne = groupType == TYPE_SELECTEXACTLYONE ||
+                                 groupType == TYPE_SELECTATLEASTONE;
       bool maySelectMore = true;
 
       for (QAbstractButton * const control : controls) {
@@ -1397,11 +1398,12 @@ void FomodInstallerDialog::displayCurrentPage()
           maySelectMore = false;
         }
       }
-      if (none_button != nullptr && maySelectMore) {
-        none_button->setChecked(true);
-      }
-      if (groupType == TYPE_SELECTEXACTLYONE && maySelectMore) {
-        controls[0]->setChecked(true);
+      if (maySelectMore) {
+        if (none_button != nullptr) {
+          none_button->setChecked(true);
+        } else if (mustSelectOne) {
+          controls[0]->setChecked(true);
+        }
       }
     }
   }
