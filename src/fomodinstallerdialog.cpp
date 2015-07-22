@@ -1301,6 +1301,8 @@ void FomodInstallerDialog::widgetButtonClicked()
 {
   //A button has been clicked. At the moment we do nothing with this
   //beyond checking the next button state
+  //FIXME: At this point we should check if this button is part of a group
+  //which requires at least one entry to be selected and disallow turning off.
   updateNextbtnText();
 }
 
@@ -1363,6 +1365,8 @@ void FomodInstallerDialog::displayCurrentPage()
       bool const mustSelectOne = groupType == TYPE_SELECTEXACTLYONE ||
                                  groupType == TYPE_SELECTATLEASTONE;
       bool maySelectMore = true;
+      QAbstractButton *first_optional = nullptr;
+      QAbstractButton *first_couldbe = nullptr;
 
       for (QAbstractButton * const control : controls) {
         PluginTypeInfo const info = control->property("plugintypeinfo").value<PluginTypeInfo>();
@@ -1370,6 +1374,11 @@ void FomodInstallerDialog::displayCurrentPage()
         control->setEnabled(true);
         switch (type) {
           case TYPE_REQUIRED: {
+            if (groupType == TYPE_SELECTEXACTLYONE) {
+              qWarning() << "A 'required' plugin when you're only allowed to select exactly one is probably wrong";
+            } else if (groupType == TYPE_SELECTATMOSTONE) {
+              qWarning() << "A 'required' plugin when you're only allowed to select at most one is probably wrong";
+            }
             control->setChecked(true);
             control->setEnabled(false);
             control->setToolTip(tr("This component is required"));
@@ -1381,6 +1390,9 @@ void FomodInstallerDialog::displayCurrentPage()
             control->setToolTip(tr("It is recommended you enable this component"));
           } break;
           case TYPE_OPTIONAL: {
+            if (first_optional == nullptr) {
+              first_optional = control;
+            }
             control->setToolTip(tr("Optional component"));
           } break;
           case TYPE_NOTUSABLE: {
@@ -1389,6 +1401,9 @@ void FomodInstallerDialog::displayCurrentPage()
             control->setToolTip(tr("This component is not usable in combination with other installed plugins"));
           } break;
           case TYPE_COULDBEUSABLE: {
+            if (first_couldbe == nullptr) {
+              first_couldbe = control;
+            }
             control->setCheckable(true);
             control->setIcon(QIcon(":/new/guiresources/warning_16"));
             control->setToolTip(tr("You may be experiencing instability in combination with other installed plugins"));
@@ -1402,7 +1417,16 @@ void FomodInstallerDialog::displayCurrentPage()
         if (none_button != nullptr) {
           none_button->setChecked(true);
         } else if (mustSelectOne) {
-          controls[0]->setChecked(true);
+          if (first_optional != nullptr) {
+            first_optional->setChecked(true);
+          } else if (first_couldbe != nullptr) {
+            qWarning("User should select at least one plugin but the only ones available could cause instability");
+            first_couldbe->setChecked(true);
+          } else {
+            //FIXME Should this generate an error
+            qWarning("User should select at least one plugin but none are available");
+            controls[0]->setChecked(true);
+          }
         }
       }
     }
