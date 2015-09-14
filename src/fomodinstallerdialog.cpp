@@ -70,7 +70,6 @@ FomodInstallerDialog::FomodInstallerDialog(const GuessedValue<QString> &modName,
                                            QWidget *parent)
   : QDialog(parent), ui(new Ui::FomodInstallerDialog), m_ModName(modName), m_ModID(-1),
     m_FomodPath(fomodPath), m_Manual(false), m_FileCheck(fileCheck),
-    m_CacheConditions(true),
     m_FileSystemItemSequence()
 {
   ui->setupUi(this);
@@ -895,7 +894,9 @@ void FomodInstallerDialog::readPluginList(XmlReader &reader, QString const &grou
     QVariantList conditionFlags;
     for (ConditionFlag const &conditionFlag : plugin.m_ConditionFlags) {
       if (! conditionFlag.m_Name.isEmpty()) {
+/**/qDebug() << "flag " << conditionFlag.m_Name << " value " << conditionFlag.m_Value;
         conditionFlags.append(qVariantFromValue(conditionFlag));
+
       }
     }
     newControl->setProperty("conditionFlags", conditionFlags);
@@ -1208,6 +1209,7 @@ void FomodInstallerDialog::activateCurrentPage()
     highlightControl(choices.at(0));
   }
   m_PageVisible.push_back(true);
+  updateNextbtnText();
 }
 
 bool FomodInstallerDialog::testCondition(int maxIndex, const QString &flag, const QString &value) const
@@ -1215,21 +1217,11 @@ bool FomodInstallerDialog::testCondition(int maxIndex, const QString &flag, cons
   //FIXME Review this and see if we can store the visible and evaluated variables for each
   //page and cache like that. This would make me happier (if no one else) about the results
   //of doing 'previous' and changing a flag to 'unset'.
-  // a caching mechanism for previously calculated condition results. otherwise going through multiple pages can get
-  // very slow
-  auto iter = m_ConditionCache.find(flag);
-  if (iter != m_ConditionCache.end()) {
-    return iter->second == value;
-  }
 
-  // unset and set conditions are stored separately since the unset conditions need to be flushed when we move to the next page (condition
-  // could be set there) while the set conditions need to be flushed when we move back in in the installer
-  if (m_ConditionsUnset.find(flag) != m_ConditionsUnset.end()) {
-    return value.isEmpty();
-  }
-
-  // iterate through all enabled condition flags on all activated controls on all visible pages if one of them matches the condition
-  for (int i = 0; i < maxIndex; ++i) {
+  // iterate through all enabled condition flags on all activated controls on
+  // all visible pages if one of them matches the condition, taking the most
+  // recent setting.
+  for (int i = maxIndex - 1; i >= 0; --i) {
     if (testVisible(i)) {
       QWidget *page = ui->stepsStack->widget(i);
       QList<QAbstractButton*> choices = page->findChildren<QAbstractButton*>("choice");
@@ -1240,9 +1232,6 @@ bool FomodInstallerDialog::testCondition(int maxIndex, const QString &flag, cons
             QVariantList conditionFlags = temp.toList();
             for (QVariant const &variant : conditionFlags) {
               ConditionFlag condition = variant.value<ConditionFlag>();
-              if (m_CacheConditions) {
-                m_ConditionCache[condition.m_Name] = condition.m_Value;
-              }
               if (condition.m_Name == flag) {
                 return condition.m_Value == value;
               }
@@ -1251,9 +1240,6 @@ bool FomodInstallerDialog::testCondition(int maxIndex, const QString &flag, cons
         }
       }
     }
-  }
-  if (m_CacheConditions) {
-    m_ConditionsUnset.insert(flag);
   }
   return value.isEmpty();
 }
@@ -1279,7 +1265,6 @@ bool FomodInstallerDialog::testVisible(int pageIndex) const
 
 bool FomodInstallerDialog::nextPage()
 {
-  m_ConditionsUnset.clear();
   int oldIndex = ui->stepsStack->currentIndex();
 
   int index = oldIndex + 1;
@@ -1294,6 +1279,7 @@ bool FomodInstallerDialog::nextPage()
     ++index;
   }
   // no more visible pages -> install
+  qWarning("Got to install after pressing next!");
   return false;
 }
 
@@ -1311,10 +1297,8 @@ void FomodInstallerDialog::updateNextbtnText()
   //Display 'next' or 'install' as appropriate for the next button.
   //note this can change depending on what buttons you click here.
 
-  m_CacheConditions = false;
   auto old_PageVisible = m_PageVisible;
   ON_BLOCK_EXIT([&] () {
-    m_CacheConditions = true;
     m_PageVisible = old_PageVisible;
   });
 
@@ -1431,7 +1415,6 @@ void FomodInstallerDialog::displayCurrentPage()
       }
     }
   }
-  updateNextbtnText();
 }
 
 void FomodInstallerDialog::on_nextBtn_clicked()
@@ -1461,7 +1444,6 @@ void FomodInstallerDialog::on_prevBtn_clicked()
       previousIndex = ui->stepsStack->currentIndex() - 1;
     }
     ui->stepsStack->setCurrentIndex(previousIndex);
-    m_ConditionCache.clear();
     m_PageVisible.resize(previousIndex);
     ui->nextBtn->setText(tr("Next"));
   }
