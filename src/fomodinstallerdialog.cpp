@@ -894,7 +894,6 @@ void FomodInstallerDialog::readPluginList(XmlReader &reader, QString const &grou
     QVariantList conditionFlags;
     for (ConditionFlag const &conditionFlag : plugin.m_ConditionFlags) {
       if (! conditionFlag.m_Name.isEmpty()) {
-/**/qDebug() << "flag " << conditionFlag.m_Name << " value " << conditionFlag.m_Value;
         conditionFlags.append(qVariantFromValue(conditionFlag));
 
       }
