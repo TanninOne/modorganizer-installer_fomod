@@ -20,19 +20,20 @@ along with Mod Organizer.  If not, see <http://www.gnu.org/licenses/>.
 #ifndef FOMODINSTALLERDIALOG_H
 #define FOMODINSTALLERDIALOG_H
 
+#include "directorytree.h"
+#include "guessedvalue.h"
+#include "ipluginlist.h"
 
-#include <guessedvalue.h>
-#include <directorytree.h>
-#include <ipluginlist.h>
+class QAbstractButton;
 #include <QDialog>
-#include <QAbstractButton>
-#include <QXmlStreamReader>
 #include <QGroupBox>
-#include <QSharedPointer>
 #include <QMetaType>
-#include <QVariantList>
-#include <functional>
+#include <QObject>
+class QXmlStreamReader;
+#include <QString>
 
+#include <functional>
+#include <vector>
 
 namespace Ui {
 class FomodInstallerDialog;
@@ -348,15 +349,7 @@ private:
   std::vector<ConditionalInstall> m_ConditionalInstalls;
   std::vector<bool> m_PageVisible;
 
-  mutable std::map<QString, QString> m_ConditionCache;
-  mutable std::set<QString> m_ConditionsUnset;
-
   std::function<MOBase::IPluginList::PluginStates (const QString&)> m_FileCheck;
-
-  //Set for caching conditions. Coditions are cached when moving between pages,
-  //but not when playing with buttons on the current page, as we could cache
-  //wrong values.
-  bool m_CacheConditions;
 
   //Because NMM maintains the sequence from the xml when dealing with things with
   //the same priority, we have to as well. This is moderately hacky.
