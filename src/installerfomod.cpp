@@ -159,6 +159,8 @@ IPluginInstaller::EInstallResult InstallerFomod::install(GuessedValue<QString> &
       modID = dialog.getModID();
     }
 
+    manager()->setURL(dialog.getURL());
+
     if (!dialog.hasOptions() || (dialog.exec() == QDialog::Accepted)) {
       modName.update(dialog.getName(), GUESS_USER);
       DirectoryTree *newTree = dialog.updateTree(&tree);

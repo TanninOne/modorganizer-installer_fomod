@@ -172,6 +172,11 @@ public:
   int getModID() const;
 
   /**
+   * @return the mod url as specified in the fomod file
+   */
+  QString getURL() const;
+
+  /**
    * @brief retrieve the updated archive tree from the dialog. The caller is responsible to delete the returned tree.
    *
    * @note This call is destructive on the input tree!
@@ -354,6 +359,9 @@ private:
   //Because NMM maintains the sequence from the xml when dealing with things with
   //the same priority, we have to as well. This is moderately hacky.
   int m_FileSystemItemSequence;
+
+  //The web page in the fomod (if supplied)
+  QString m_URL;
 
 };
 
