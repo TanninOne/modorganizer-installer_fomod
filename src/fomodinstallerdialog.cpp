@@ -19,24 +19,29 @@ along with Mod Organizer.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "fomodinstallerdialog.h"
 
+#include "igameinfo.h"
+#include "imoinfo.h"
 #include "report.h"
-#include "utility.h"
+#include "scopeguard.h"
 #include "ui_fomodinstallerdialog.h"
+#include "utility.h"
 #include "xmlreader.h"
 
-#include <scopeguard.h>
-#include <QFile>
-#include <QDir>
-#include <QDebug>
-#include <QImage>
 #include <QCheckBox>
+#include <QDebug>
+#include <QDir>
+#include <QFile>
+#include <QImage>
 #include <QRadioButton>
 #include <QScrollArea>
 #include <QTextCodec>
-#include <Shellapi.h>
-#include <boost/assign.hpp>
-#include <sstream>
 
+#include <Shellapi.h>
+
+#include <boost/assign.hpp>
+
+#include <array>
+#include <sstream>
 
 using namespace MOBase;
 
@@ -114,9 +119,6 @@ int FomodInstallerDialog::bomOffset(const QByteArray &buffer)
 
   return 0;
 }
-
-#pragma message("implement module dependencies->file dependencies")
-
 
 struct XmlParseError : std::runtime_error {
   XmlParseError(const QString &message)
@@ -250,8 +252,10 @@ void FomodInstallerDialog::readModuleConfigXml()
   }
 }
 
-void FomodInstallerDialog::initData()
+void FomodInstallerDialog::initData(IOrganizer *moInfo)
 {
+  m_MoInfo = moInfo;
+
   // parse provided package information
   readInfoXml();
 
@@ -462,6 +466,59 @@ QString FomodInstallerDialog::toString(IPluginList::PluginStates state)
 bool FomodInstallerDialog::testCondition(int, const FileCondition *condition) const
 {
   return toString(m_FileCheck(condition->m_File)) == condition->m_State;
+}
+
+namespace {
+class Version
+{
+public:
+  explicit Version(QString const &v);
+
+  friend bool operator<=(Version const &, Version const &);
+
+private:
+  std::array<int, 4> m_version;
+};
+
+Version::Version(QString const &v)
+{
+  std::istringstream parser(v.toStdString());
+  m_version.fill(0);
+  parser >> m_version[0];
+  for (int idx = 1; idx < 4; idx++)
+  {
+      parser.get(); //Skip period
+      parser >> m_version[idx];
+  }
+}
+
+bool operator<=(Version const &lhs, Version const &rhs)
+{
+  return lhs.m_version <= rhs.m_version;
+}
+
+}
+bool FomodInstallerDialog::testCondition(int, const VersionCondition *condition) const
+{
+  QString version;
+  MOBase::IGameInfo const &game = m_MoInfo->gameInfo();
+
+  switch (condition->m_Type) {
+    case VersionCondition::v_Game: {
+      version = game.version();
+    } break;
+
+    case VersionCondition::v_FOMM:
+      //We should use m_MoInfo->appVersion() but then we wouldn't be able to
+      //install anything as MO is at 0.3.11 at the time of writing.
+      version = "0.13.21";
+      break;
+
+    case VersionCondition::v_FOSE: {
+      version = game.extenderVersion();
+    } break;
+  }
+  return Version(condition->m_RequiredVersion) <= Version(version);
 }
 
 DirectoryTree *FomodInstallerDialog::updateTree(DirectoryTree *tree)
@@ -1051,18 +1108,28 @@ void FomodInstallerDialog::readCompositeDependency(XmlReader &reader, SubConditi
 
   QString const self = reader.name().toString();
   while (reader.getNextElement(self)) {
-    if (reader.name() == "fileDependency") {
+    QStringRef name = reader.name();
+    if (name == "fileDependency") {
       conditional.m_Conditions.push_back(new FileCondition(reader.attributes().value("file").toString(),
                                                            reader.attributes().value("state").toString()));
       reader.finishedElement();
-    } else if (reader.name() == "flagDependency") {
+    } else if (name == "flagDependency") {
       conditional.m_Conditions.push_back(new ValueCondition(reader.attributes().value("flag").toString(),
                                                             reader.attributes().value("value").toString()));
       reader.finishedElement();
-    // FIXME else if gameDependency
-    // FIXME else if fommDependency
-    // FIXME else if foseDependency
-    } else if (reader.name() == "dependencies") {
+    } else if (name == "gameDependency") {
+      conditional.m_Conditions.push_back(new VersionCondition(VersionCondition::v_Game,
+                                                              reader.attributes().value("version").toString()));
+      reader.finishedElement();
+    } else if (name == "fommDependency") {
+      conditional.m_Conditions.push_back(new VersionCondition(VersionCondition::v_FOMM,
+                                                              reader.attributes().value("version").toString()));
+      reader.finishedElement();
+    } else if (name == "foseDependency") {
+      conditional.m_Conditions.push_back(new VersionCondition(VersionCondition::v_FOSE,
+                                                              reader.attributes().value("version").toString()));
+      reader.finishedElement();
+    } else if (name == "dependencies") {
       SubCondition *nested = new SubCondition();
       readCompositeDependency(reader, *nested);
       conditional.m_Conditions.push_back(nested);
@@ -1130,23 +1197,26 @@ void FomodInstallerDialog::readModuleConfiguration(XmlReader &reader)
   //  optional - conditionalFileInstalls
   QString const self(reader.name().toString());
   while (reader.getNextElement(self)) {
-    if (reader.name() == "moduleName") {
+    QStringRef name = reader.name();
+    if (name == "moduleName") {
       QString title = reader.getText();
       qDebug() << "module name : "  << title;
-    } else if (reader.name() == "moduleImage") {
+    } else if (name == "moduleImage") {
       //do something useful with the attributes of this
       reader.finishedElement();
-    } else if (reader.name() == "moduleDependencies") {
-      // skip the content of the inside moduleDependencies as we can't handle it
-      reader.readElementText(XmlReader::IncludeChildElements);
-      //FIXME do something useful with the condition dependencies
-      //readCompositeDependency
-      qWarning() << "Module dependencies not yet implemented";
-    } else if (reader.name() == "requiredInstallFiles") {
+    } else if (name == "moduleDependencies") {
+      //Read and process the composite depependency. For now we'll say there
+      // are unsatisfied dependencies.
+      SubCondition condition;
+      readCompositeDependency(reader, condition);
+      if (!testCondition(-1, &condition)) {
+        throw MyException("This module is not usable with this setup");
+      }
+    } else if (name == "requiredInstallFiles") {
       readFileList(reader, m_RequiredFiles);
-    } else if (reader.name() == "installSteps") {
+    } else if (name == "installSteps") {
       readStepList(reader);
-    } else if (reader.name() == "conditionalFileInstalls") {
+    } else if (name == "conditionalFileInstalls") {
       readConditionalFileInstallList(reader);
     } else {
       reader.unexpected();

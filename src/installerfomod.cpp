@@ -151,7 +151,7 @@ IPluginInstaller::EInstallResult InstallerFomod::install(GuessedValue<QString> &
 
     QString fomodPath = fomodTree->getParent()->getFullPath();
     FomodInstallerDialog dialog(modName, fomodPath, std::bind(&InstallerFomod::fileState, this, std::placeholders::_1));
-    dialog.initData();
+    dialog.initData(m_MOInfo);
     if (!dialog.getVersion().isEmpty()) {
       version = dialog.getVersion();
     }
