@@ -983,7 +983,6 @@ void FomodInstallerDialog::readPluginList(XmlReader &reader, QString const &grou
 
 void FomodInstallerDialog::readGroup(XmlReader &reader, QLayout *layout)
 {
-  //FileGroup result;
   QString name = reader.attributes().value("name").toString();
   GroupType type = getGroupType(reader.attributes().value("type").toString());
 
@@ -1003,7 +1002,6 @@ void FomodInstallerDialog::readGroup(XmlReader &reader, QLayout *layout)
   groupLayout->setProperty("groupType", qVariantFromValue(type));
   groupLayout->setObjectName("grouplayout");
   groupBox->setLayout(groupLayout);
-
   if (type == TYPE_SELECTATLEASTONE) {
     QLabel *label = new QLabel(tr("Select one or more of these options:"));
     layout->addWidget(label);
@@ -1205,11 +1203,10 @@ void FomodInstallerDialog::readModuleConfiguration(XmlReader &reader)
       //do something useful with the attributes of this
       reader.finishedElement();
     } else if (name == "moduleDependencies") {
-      //Read and process the composite depependency. For now we'll say there
-      // are unsatisfied dependencies.
       SubCondition condition;
       readCompositeDependency(reader, condition);
       if (!testCondition(-1, &condition)) {
+        //TODO Better messages?
         throw MyException("This module is not usable with this setup");
       }
     } else if (name == "requiredInstallFiles") {
@@ -1356,13 +1353,51 @@ void FomodInstallerDialog::widgetButtonClicked()
 {
   //A button has been clicked. At the moment we do nothing with this
   //beyond checking the next button state
-  //FIXME: At this point we should check if this button is part of a group
-  //which requires at least one entry to be selected and disallow turning off.
   updateNextbtnText();
 }
 
 void FomodInstallerDialog::updateNextbtnText()
 {
+  //First we see if we can actually allow the 'next' button. Specifically, this
+  //is a test to ensure that you have selected at least one item in a
+  //'select at least one' box.
+  int const page = ui->stepsStack->currentIndex();
+  QStringList groups_requiring_selection;
+  for (QVBoxLayout const * const layout : ui->stepsStack->widget(page)->findChildren<QVBoxLayout*>("grouplayout")) {
+    GroupType const groupType(layout->property("groupType").value<GroupType>());
+    if (groupType == TYPE_SELECTATLEASTONE) {
+      //Check at least one of this group is ticked
+      bool checked = false;
+      for (int i = 0; i != layout->count(); ++i) {
+        if (QLayoutItem * item = layout->itemAt(i)) {
+          QAbstractButton * const choice = dynamic_cast<QAbstractButton *>(item->widget());
+          if (choice != nullptr) {
+            if (choice->objectName() == "choice" && choice->isChecked()) {
+              checked = true;
+              break;
+            }
+          }
+        }
+      }
+      if (!checked) {
+        QString group = dynamic_cast<QGroupBox*>(layout->parentWidget())->title();
+        qDebug() << "Group " << group << " needs a selection";
+        groups_requiring_selection.append(group);
+      }
+    }
+  }
+
+  if (groups_requiring_selection.size() != 0) {
+    ui->nextBtn->setText(tr("Disabled"));
+    ui->nextBtn->setEnabled(false);
+    ui->nextBtn->setToolTip(tr("This button is disabled because the following group(s) need a selection: ") +
+                            groups_requiring_selection.join(", "));
+    return;
+  }
+
+  //OK, clear up any warnings
+  ui->nextBtn->setToolTip("");
+
   //Display 'next' or 'install' as appropriate for the next button.
   //note this can change depending on what buttons you click here.
 
@@ -1372,8 +1407,7 @@ void FomodInstallerDialog::updateNextbtnText()
   });
 
   bool isLast = true;
-  for (int index = ui->stepsStack->currentIndex() + 1;
-       index != ui->stepsStack->count(); ++index) {
+  for (int index = page + 1; index != ui->stepsStack->count(); ++index) {
     if (testVisible(index)) {
       isLast = false;
       break;
@@ -1381,6 +1415,7 @@ void FomodInstallerDialog::updateNextbtnText()
     m_PageVisible.push_back(false);
   }
 
+  ui->nextBtn->setEnabled(true);
   ui->nextBtn->setText(isLast ? tr("Install") : tr("Next"));
 }
 
