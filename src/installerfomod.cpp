@@ -1,5 +1,6 @@
 #include "installerfomod.h"
 #include "fomodinstallerdialog.h"
+#include "filenamestring.h"
 
 #include <report.h>
 #include <iinstallationmanager.h>
@@ -50,11 +51,17 @@ bool InstallerFomod::isActive() const
   return m_MOInfo->pluginSetting(name(), "enabled").toBool();
 }
 
+bool InstallerFomod::allowAnyFile() const
+{
+  return m_MOInfo->pluginSetting(name(), "anyfile").toBool();
+}
+
 QList<PluginSetting> InstallerFomod::settings() const
 {
   QList<PluginSetting> result;
   result.push_back(PluginSetting("enabled", "check to enable this plugin", QVariant(true)));
   result.push_back(PluginSetting("prefer", "prefer this over the NCC based plugin", QVariant(true)));
+  result.push_back(PluginSetting("anyfile", "allow dependencies on any file, not just esp/esm", QVariant(false)));
   return result;
 }
 
@@ -136,7 +143,26 @@ QStringList InstallerFomod::buildFomodTree(DirectoryTree &tree)
 
 IPluginList::PluginStates InstallerFomod::fileState(const QString &fileName)
 {
-  return m_MOInfo->pluginList()->state(fileName);
+  FileNameString fn(fileName);
+  if (fn.endsWith(".esp") || fn.endsWith(".esm")) {
+    return m_MOInfo->pluginList()->state(fileName);
+  }
+  if (!allowAnyFile()) {
+    qWarning() << "A dependency on non esp/esp " << fileName <<
+                                              " will always find it as missing";
+    return IPluginList::STATE_MISSING;
+  }
+
+  QFileInfo info(fileName);
+  FileNameString name(info.fileName());
+  QStringList files = m_MOInfo->findFiles(info.dir().path(),
+       [&, name] (const QString &f) -> bool {
+                                        return name == QFileInfo(f).fileName();
+                                        });
+  //A note: The list of files produced is somewhat odd as it's the full path
+  //to the originating mod (or mods). However, all we care about is if it's
+  //there or not.
+  return files.size() == 0 ? IPluginList::STATE_MISSING : IPluginList::STATE_ACTIVE;
 }
 
 
