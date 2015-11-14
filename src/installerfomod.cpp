@@ -148,7 +148,7 @@ IPluginList::PluginStates InstallerFomod::fileState(const QString &fileName)
     return m_MOInfo->pluginList()->state(fileName);
   }
   if (!allowAnyFile()) {
-    qWarning() << "A dependency on non esp/esp " << fileName <<
+    qWarning() << "A dependency on non esp/esm " << fileName <<
                                               " will always find it as missing";
     return IPluginList::STATE_MISSING;
   }
