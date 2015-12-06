@@ -282,6 +282,11 @@ int FomodInstallerDialog::getModID() const
   return m_ModID;
 }
 
+QString FomodInstallerDialog::getURL() const
+{
+  return m_URL;
+}
+
 void FomodInstallerDialog::moveTree(DirectoryTree::Node *target, DirectoryTree::Node *source, DirectoryTree::Overwrites *overwrites)
 {
   for (DirectoryTree::const_node_iterator iter = source->nodesBegin(); iter != source->nodesEnd();) {
@@ -632,9 +637,9 @@ void FomodInstallerDialog::parseInfo(QXmlStreamReader &reader)
         } else if (reader.name() == "Id") {
           m_ModID = readContent(reader).toInt();
         } else if (reader.name() == "Website") {
-          QString url = readContent(reader);
-          ui->websiteLabel->setText(tr("<a href=\"%1\">Link</a>").arg(url));
-          ui->websiteLabel->setToolTip(url);
+          m_URL = readContent(reader);
+          ui->websiteLabel->setText(tr("<a href=\"%1\">Link</a>").arg(m_URL));
+          ui->websiteLabel->setToolTip(m_URL);
         }
       } break;
       default: {} break;

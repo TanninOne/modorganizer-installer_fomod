@@ -188,6 +188,11 @@ public:
   int getModID() const;
 
   /**
+   * @return the mod url as specified in the fomod file
+   */
+  QString getURL() const;
+
+  /**
    * @brief retrieve the updated archive tree from the dialog. The caller is responsible to delete the returned tree.
    *
    * @note This call is destructive on the input tree!
@@ -374,6 +379,9 @@ private:
 
   //So I can find out game info (I hope)
   MOBase::IOrganizer *m_MoInfo;
+
+  //The web page in the fomod (if supplied)
+  QString m_URL;
 
 };
 
