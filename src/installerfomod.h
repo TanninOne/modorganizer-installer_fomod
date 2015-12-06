@@ -65,6 +65,8 @@ private:
 
   MOBase::IOrganizer *m_MOInfo;
 
+  bool allowAnyFile() const;
+  bool checkDisabledMods() const;
 };
 
 #endif // INSTALLERFOMOD_H

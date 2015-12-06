@@ -1,5 +1,9 @@
 #include "installerfomod.h"
+
+#include "filenamestring.h"
 #include "fomodinstallerdialog.h"
+#include "imodinterface.h"
+#include "imodlist.h"
 
 #include <report.h>
 #include <iinstallationmanager.h>
@@ -37,7 +41,7 @@ QString InstallerFomod::author() const
 
 QString InstallerFomod::description() const
 {
-  return tr("Installer for xml based fomod archives. This probably has worse compatibility than the NCC based plugin.");
+  return tr("Installer for xml based fomod archives.");
 }
 
 VersionInfo InstallerFomod::version() const
@@ -50,11 +54,23 @@ bool InstallerFomod::isActive() const
   return m_MOInfo->pluginSetting(name(), "enabled").toBool();
 }
 
+bool InstallerFomod::allowAnyFile() const
+{
+  return m_MOInfo->pluginSetting(name(), "use_any_file").toBool();
+}
+
+bool InstallerFomod::checkDisabledMods() const
+{
+  return m_MOInfo->pluginSetting(name(), "see_disabled_mods").toBool();
+}
+
 QList<PluginSetting> InstallerFomod::settings() const
 {
   QList<PluginSetting> result;
   result.push_back(PluginSetting("enabled", "check to enable this plugin", QVariant(true)));
   result.push_back(PluginSetting("prefer", "prefer this over the NCC based plugin", QVariant(true)));
+  result.push_back(PluginSetting("use_any_file", "allow dependencies on any file, not just esp/esm", QVariant(false)));
+  result.push_back(PluginSetting("see_disabled_mods", "treat disabled mods as inactive rather than missing", QVariant(false)));
   return result;
 }
 
@@ -136,7 +152,53 @@ QStringList InstallerFomod::buildFomodTree(DirectoryTree &tree)
 
 IPluginList::PluginStates InstallerFomod::fileState(const QString &fileName)
 {
-  return m_MOInfo->pluginList()->state(fileName);
+  FileNameString fn(fileName);
+  if (fn.endsWith(".esp") || fn.endsWith(".esm")) {
+    IPluginList::PluginStates state =  m_MOInfo->pluginList()->state(fileName);
+    if (state != IPluginList::STATE_MISSING) {
+      return state;
+    }
+  } else if (allowAnyFile()) {
+    QFileInfo info(fileName);
+    FileNameString name(info.fileName());
+    QStringList files = m_MOInfo->findFiles(info.dir().path(),
+         [&, name] (const QString &f) -> bool {
+                                          return name == QFileInfo(f).fileName();
+                                          });
+    //A note: The list of files produced is somewhat odd as it's the full path
+    //to the originating mod (or mods). However, all we care about is if it's
+    //there or not.
+    if (files.size() != 0) {
+      return IPluginList::STATE_ACTIVE;
+    }
+  } else {
+    qWarning() << "A dependency on non esp/esm " << fileName <<
+                                              " will always find it as missing";
+    return IPluginList::STATE_MISSING;
+  }
+
+  //If they are really desparate we look in the full mod list and try that
+  if (checkDisabledMods()) {
+    IModList *modList = m_MOInfo->modList();
+    QStringList list = modList->allMods();
+    for (QString mod : list) {
+      //Get mod state. if it's active we've already looked. If it's not valid,
+      //no point in looking.
+      IModList::ModStates state = modList->state(mod);
+      if ((state & IModList::STATE_ACTIVE) != 0 ||
+          (state & IModList::STATE_VALID) == 0) {
+        continue;
+      }
+      MOBase::IModInterface *modInfo = m_MOInfo->getMod(mod);
+      //Go see if the file is in the mod
+      QDir modpath(modInfo->absolutePath());
+      QFile file(modpath.absoluteFilePath(fileName));
+      if (file.exists()) {
+        return IPluginList::STATE_INACTIVE;
+      }
+    }
+  }
+  return IPluginList::STATE_MISSING;
 }
 
 
