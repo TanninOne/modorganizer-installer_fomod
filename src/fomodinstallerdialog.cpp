@@ -506,7 +506,7 @@ bool FomodInstallerDialog::testCondition(int, const VersionCondition *condition)
 
   switch (condition->m_Type) {
     case VersionCondition::v_Game: {
-      version = game->version();
+      version = game->getGameVersion();
     } break;
 
     case VersionCondition::v_FOMM:
@@ -518,7 +518,7 @@ bool FomodInstallerDialog::testCondition(int, const VersionCondition *condition)
     case VersionCondition::v_FOSE: {
       ScriptExtender *extender = game->feature<ScriptExtender>();
       if (extender != nullptr) {
-        version = extender->version();
+        version = extender->getExtenderVersion();
       }
     } break;
   }
