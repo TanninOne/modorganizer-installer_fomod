@@ -19,10 +19,11 @@ along with Mod Organizer.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "fomodinstallerdialog.h"
 
-#include "igameinfo.h"
 #include "imoinfo.h"
+#include "iplugingame.h"
 #include "report.h"
 #include "scopeguard.h"
+#include "scriptextender.h"
 #include "ui_fomodinstallerdialog.h"
 #include "utility.h"
 #include "xmlreader.h"
@@ -506,11 +507,11 @@ bool operator<=(Version const &lhs, Version const &rhs)
 bool FomodInstallerDialog::testCondition(int, const VersionCondition *condition) const
 {
   QString version;
-  MOBase::IGameInfo const &game = m_MoInfo->gameInfo();
+  MOBase::IPluginGame const *game = m_MoInfo->managedGame();
 
   switch (condition->m_Type) {
     case VersionCondition::v_Game: {
-      version = game.version();
+      version = game->getGameVersion();
     } break;
 
     case VersionCondition::v_FOMM:
@@ -520,7 +521,10 @@ bool FomodInstallerDialog::testCondition(int, const VersionCondition *condition)
       break;
 
     case VersionCondition::v_FOSE: {
-      version = game.extenderVersion();
+      ScriptExtender *extender = game->feature<ScriptExtender>();
+      if (extender != nullptr) {
+        version = extender->getExtenderVersion();
+      }
     } break;
   }
   return Version(condition->m_RequiredVersion) <= Version(version);

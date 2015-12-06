@@ -34,8 +34,10 @@ FORMS += \
 
 OTHER_FILES += \
     installerfomod.json\
-    SConscript
+    SConscript\
+    CMakeLists.txt
 
 include(../plugin_template.pri)
 
 INCLUDEPATH += "$${BOOSTPATH}"
+INCLUDEPATH += ../gamefeatures
