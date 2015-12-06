@@ -11,7 +11,7 @@ env.AppendUnique(CPPDEFINES = [
 ])
 
 # can't use appendunique...
-env['CPPPATH'] += [ '.' ]
+env['CPPPATH'] += [ '.', '../gamefeatures' ]
 
 env.AppendUnique(CPPPATH = [
     '${BOOSTPATH}'
