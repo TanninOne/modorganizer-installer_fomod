@@ -28,7 +28,7 @@ GET_FILENAME_COMPONENT(${default_project_path} ${default_project_path} REALPATH)
 
 SET(project_path "${default_project_path}" CACHE PATH "path to the other mo projects")
 
-INCLUDE_DIRECTORIES(${project_path}/uibase/src)
+INCLUDE_DIRECTORIES(${project_path}/uibase/src ${project_path}/game_features/src)
 LINK_DIRECTORIES(${project_path}/uibase/build/src)
 
 
