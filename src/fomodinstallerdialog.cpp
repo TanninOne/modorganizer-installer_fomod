@@ -18,13 +18,13 @@ along with Mod Organizer.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "fomodinstallerdialog.h"
+#include "ui_fomodinstallerdialog.h"
 
 #include "imoinfo.h"
 #include "iplugingame.h"
 #include "report.h"
 #include "scopeguard.h"
 #include "scriptextender.h"
-#include "ui_fomodinstallerdialog.h"
 #include "utility.h"
 #include "xmlreader.h"
 
@@ -511,7 +511,7 @@ bool FomodInstallerDialog::testCondition(int, const VersionCondition *condition)
 
   switch (condition->m_Type) {
     case VersionCondition::v_Game: {
-      version = game->getGameVersion();
+      version = game->gameVersion();
     } break;
 
     case VersionCondition::v_FOMM:

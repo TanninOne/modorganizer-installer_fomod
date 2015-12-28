@@ -24,16 +24,17 @@ along with Mod Organizer.  If not, see <http://www.gnu.org/licenses/>.
 #include "guessedvalue.h"
 #include "ipluginlist.h"
 
-class QAbstractButton;
 #include <QDialog>
 #include <QGroupBox>
 #include <QMetaType>
 #include <QObject>
-class QXmlStreamReader;
 #include <QString>
 
 #include <functional>
 #include <vector>
+
+class QAbstractButton;
+class QXmlStreamReader;
 
 namespace Ui {
 class FomodInstallerDialog;
