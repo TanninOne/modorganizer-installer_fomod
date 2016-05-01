@@ -1471,13 +1471,20 @@ void FomodInstallerDialog::displayCurrentPage()
         control->setEnabled(true);
         switch (type) {
           case TYPE_REQUIRED: {
-            if (groupType == TYPE_SELECTEXACTLYONE) {
-              qWarning() << "A 'required' plugin when you're only allowed to select exactly one is probably wrong";
-            } else if (groupType == TYPE_SELECTATMOSTONE) {
-              qWarning() << "A 'required' plugin when you're only allowed to select at most one is probably wrong";
+            if ((groupType == TYPE_SELECTEXACTLYONE)
+                || (groupType == TYPE_SELECTATMOSTONE)) {
+              // This only makes sense if the option may be disabled through
+              // conditions, so that if the conditions are met, this option is
+              // forced, otherwise the user can pick.
+              // This means that in this case the option is forced, and no user
+              // selection should be possible
+              for (QAbstractButton *groupControl : controls) {
+                groupControl->setEnabled(false);
+              }
+            } else {
+              control->setEnabled(false);
             }
             control->setChecked(true);
-            control->setEnabled(false);
             control->setToolTip(tr("This component is required"));
           } break;
           case TYPE_RECOMMENDED: {
