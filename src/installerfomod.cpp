@@ -152,45 +152,45 @@ QStringList InstallerFomod::buildFomodTree(DirectoryTree &tree)
 
 IPluginList::PluginStates InstallerFomod::fileState(const QString &fileName)
 {
-  FileNameString fn(fileName);
-  if (fn.endsWith(".esp") || fn.endsWith(".esm")) {
-    IPluginList::PluginStates state =  m_MOInfo->pluginList()->state(fileName);
+  QString ext = QFileInfo(fileName).suffix().toLower();
+  if ((ext == "esp") || (ext == "esm")) {
+    IPluginList::PluginStates state = m_MOInfo->pluginList()->state(fileName);
     if (state != IPluginList::STATE_MISSING) {
       return state;
     }
   } else if (allowAnyFile()) {
     QFileInfo info(fileName);
     FileNameString name(info.fileName());
-    QStringList files = m_MOInfo->findFiles(info.dir().path(),
-         [&, name] (const QString &f) -> bool {
-                                          return name == QFileInfo(f).fileName();
-                                          });
-    //A note: The list of files produced is somewhat odd as it's the full path
-    //to the originating mod (or mods). However, all we care about is if it's
-    //there or not.
+    QStringList files = m_MOInfo->findFiles(
+        info.dir().path(), [&, name](const QString &f) -> bool {
+          return name == QFileInfo(f).fileName();
+        });
+    // A note: The list of files produced is somewhat odd as it's the full path
+    // to the originating mod (or mods). However, all we care about is if it's
+    // there or not.
     if (files.size() != 0) {
       return IPluginList::STATE_ACTIVE;
     }
   } else {
-    qWarning() << "A dependency on non esp/esm " << fileName <<
-                                              " will always find it as missing";
+    qWarning() << "A dependency on non esp/esm " << fileName
+               << " will always find it as missing";
     return IPluginList::STATE_MISSING;
   }
 
-  //If they are really desparate we look in the full mod list and try that
+  // If they are really desparate we look in the full mod list and try that
   if (checkDisabledMods()) {
     IModList *modList = m_MOInfo->modList();
     QStringList list = modList->allMods();
     for (QString mod : list) {
-      //Get mod state. if it's active we've already looked. If it's not valid,
-      //no point in looking.
+      // Get mod state. if it's active we've already looked. If it's not valid,
+      // no point in looking.
       IModList::ModStates state = modList->state(mod);
-      if ((state & IModList::STATE_ACTIVE) != 0 ||
-          (state & IModList::STATE_VALID) == 0) {
+      if ((state & IModList::STATE_ACTIVE) != 0
+          || (state & IModList::STATE_VALID) == 0) {
         continue;
       }
       MOBase::IModInterface *modInfo = m_MOInfo->getMod(mod);
-      //Go see if the file is in the mod
+      // Go see if the file is in the mod
       QDir modpath(modInfo->absolutePath());
       QFile file(modpath.absoluteFilePath(fileName));
       if (file.exists()) {
@@ -200,7 +200,6 @@ IPluginList::PluginStates InstallerFomod::fileState(const QString &fileName)
   }
   return IPluginList::STATE_MISSING;
 }
-
 
 IPluginInstaller::EInstallResult InstallerFomod::install(GuessedValue<QString> &modName, DirectoryTree &tree,
                                                          QString &version, int &modID)
